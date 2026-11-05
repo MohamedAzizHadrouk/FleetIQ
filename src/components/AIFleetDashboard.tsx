@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { AssistantIcon } from './AssistantIcon';
 import {
   AlertTriangle,
-  Bot,
   Car,
   Fuel,
   MapPin,
   ShieldAlert,
   X,
-  MessageSquare,
   Send,
   User,
   TrendingUp,
@@ -284,16 +283,13 @@ export function AIFleetDashboard({ isOpen, onClose }: AIFleetDashboardProps) {
             {/* Header */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-12 h-12 rounded-2xl liquid-glass-soft flex items-center justify-center">
-                  <MessageSquare className="w-5 h-5 text-slate-900" />
-                </div>
+                <AssistantIcon
+                  variant="tile"
+                  size={48}
+                  className="shrink-0 rounded-[15px] shadow-[0_8px_20px_rgba(47,107,255,0.28)]"
+                />
                 <div className="min-w-0">
                   <div className="flex items-center gap-3">
-                    <img
-                      src="/unnamed__8_-removebg-preview.png"
-                      alt="Assistant TUNAVI"
-                      className="w-10 h-10 object-contain drop-shadow"
-                    />
                     <h2 className="text-slate-900 text-lg sm:text-xl font-bold truncate">
                       Assistant TUNAVI
                     </h2>
@@ -769,8 +765,8 @@ export function AIFleetDashboard({ isOpen, onClose }: AIFleetDashboardProps) {
                                 className={`flex items-end gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}
                               >
                                 {!isUser && (
-                                  <span className="w-7 h-7 rounded-full bg-white/80 border border-slate-200/70 flex items-center justify-center text-slate-700 shrink-0">
-                                    <Bot className="w-3.5 h-3.5" />
+                                  <span className="w-7 h-7 rounded-full bg-[#EAF1FF] border border-[#DCE6FB] flex items-center justify-center text-[#2F6BFF] shrink-0">
+                                    <AssistantIcon size={15} />
                                   </span>
                                 )}
                                 <div
@@ -793,8 +789,8 @@ export function AIFleetDashboard({ isOpen, onClose }: AIFleetDashboardProps) {
 
                           {isTyping && (
                             <div className="flex items-end gap-2 justify-start">
-                              <span className="w-7 h-7 rounded-full bg-white/80 border border-slate-200/70 flex items-center justify-center text-slate-700 shrink-0">
-                                <Bot className="w-3.5 h-3.5" />
+                              <span className="w-7 h-7 rounded-full bg-[#EAF1FF] border border-[#DCE6FB] flex items-center justify-center text-[#2F6BFF] shrink-0">
+                                <AssistantIcon size={15} />
                               </span>
                               <div className="rounded-2xl px-3 py-2 bg-white/90 border border-slate-200/70">
                                 <div className="flex gap-1">

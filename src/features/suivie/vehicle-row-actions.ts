@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+import { roadTrack } from '@/features/fleetiq/road-position';
 import {
   MapPin,
   Route,
@@ -76,11 +77,17 @@ export function getVisibleVehicleRowActions(
   );
 }
 
-/** Deterministic mock GPS path around a vehicle for trajectory preview */
+/**
+ * GPS track for the trajectory preview: the real road route driven so far
+ * (OSRM data, see road-routes.ts). Falls back to a small synthetic loop only
+ * for vehicles without a generated route.
+ */
 export function buildMockTrajectoryPath(
   vehicle: Vehicle,
   pointCount = 12
 ): [number, number][] {
+  const road = roadTrack(vehicle);
+  if (road && road.length >= 2) return road;
   const [lat0, lng0] = vehicle.coordinates;
   const points: [number, number][] = [];
   for (let i = 0; i < pointCount; i++) {

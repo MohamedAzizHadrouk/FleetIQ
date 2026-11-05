@@ -16,7 +16,6 @@ import { Vehicle, VehicleStatus } from './types';
 import { VehicleListPanel } from './components/VehicleListPanel';
 import { AlertsContent } from './components/AlertsContent';
 import { AIFleetDashboard } from './components/AIFleetDashboard';
-import { MessageSquare } from 'lucide-react';
 import { DashboardAlertsContent } from './components/DashboardAlertsContent';
 import { LoginPage } from './pages/LoginPage';
 import { SignUpPage } from './pages/SignUpPage';
@@ -35,6 +34,13 @@ import { ModuleSelection } from './components/onboarding/ModuleSelection';
 import type { OnboardingModuleId } from './components/onboarding/module-registry';
 
 import { SUIVIE_DEPARTMENTS } from './features/suivie/column-defs';
+import { buildMockTrajectoryPath } from './features/suivie/vehicle-row-actions';
+import { roadPlacement } from './features/fleetiq/road-position';
+import type { VehicleCardActions } from './components/VehicleMapInfoCard';
+import type { TripReplayRequest } from './components/TripReplay';
+import { AssistantIcon } from './components/AssistantIcon';
+import { MonitoringCenterCard } from './components/MonitoringCenterCard';
+import { ensureAlertStore, getCriticalAlertVehicleIds } from './features/fleetiq/vehicle-card-data';
 
 type AppPhase = 'welcome' | 'module-selection' | 'login' | 'signup' | 'app';
 
@@ -395,8 +401,20 @@ const generateMockVehicles = (): Vehicle[] => {
     const rand = seededRandom(`caps-${v.id}`);
     const keepImei = Boolean(v.imei) && rand() >= 0.08;
     const imei = keepImei ? v.imei : undefined;
+    // Real road position (OSRM route) — never in the sea or off-road
+    const road = roadPlacement(v);
+    const isShowcase = showcase.some((s) => s.id === v.id);
     return {
       ...v,
+      ...(road && {
+        coordinates: road.coordinates,
+        heading: road.heading,
+        location: isShowcase
+          ? v.location
+          : v.status === 'active'
+            ? `${road.route.from} → ${road.route.to}`
+            : road.route.to,
+      }),
       imei,
       supportsCurrentPosition: Boolean(imei) && rand() < 0.7,
       supportsAad: Boolean(imei) && rand() < 0.45,
@@ -474,6 +492,7 @@ function AppShell() {
   >(null);
   const [mapCenterZoom, setMapCenterZoom] = useState<number | null>(16);
   const [trackingPath, setTrackingPath] = useState<LatLng[] | null>(null);
+  const [tripReplay, setTripReplay] = useState<TripReplayRequest | null>(null);
   const [activeTab, setActiveTab] = useState('suivie');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null
@@ -516,7 +535,14 @@ function AppShell() {
     }
     return list;
   }, [suivieFilteredVehicleIds, statusFilter]);
-  const [isMonitoringCollapsed, setIsMonitoringCollapsed] = useState(false);
+  // Monitoring Center starts collapsed so the map stays clear
+  const [isMonitoringCollapsed, setIsMonitoringCollapsed] = useState(true);
+  const criticalVehicleCount = useMemo(() => {
+    ensureAlertStore(MOCK_VEHICLES);
+    // Same rule as the map markers: offline vehicles are never drawn in the alert colour
+    const ids = getCriticalAlertVehicleIds();
+    return MOCK_VEHICLES.filter((v) => ids.has(v.id) && v.status !== 'offline').length;
+  }, []);
   const [mapCenter, setMapCenter] = useState<[number, number] | null>(null);
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [hideBadges, setHideBadges] = useState(false);
@@ -612,9 +638,45 @@ function AppShell() {
     };
   }, []);
 
-  const handleVehicleSelect = useCallback((vehicle: Vehicle) => {
-    setSelectedVehicleId(vehicle.id);
-  }, []);
+  const handleVehicleSelect = useCallback(
+    (vehicle: Vehicle) => {
+      if (vehicle.id !== selectedVehicleId) {
+        setTripReplay(null);
+        setTrackingPath(null);
+      }
+      setSelectedVehicleId(vehicle.id);
+    },
+    [selectedVehicleId]
+  );
+
+  /** Was the vehicle list open before a map marker hid it? Restored when the card closes. */
+  const [listHiddenByCard, setListHiddenByCard] = useState(false);
+
+  /** Marker click on the map: dock the card top-left and hide the left list for a clear view */
+  const handleMapVehicleSelect = useCallback(
+    (vehicle: Vehicle) => {
+      if (vehicle.id !== selectedVehicleId) {
+        setTripReplay(null);
+        setTrackingPath(null);
+      }
+      setSelectedVehicleId(vehicle.id);
+      if (!isVehicleListCollapsed) {
+        setIsVehicleListCollapsed(true);
+        setListHiddenByCard(true);
+      }
+    },
+    [isVehicleListCollapsed, selectedVehicleId]
+  );
+
+  const handleCloseVehicleCard = useCallback(() => {
+    setSelectedVehicleId(null);
+    setTripReplay(null);
+    setTrackingPath(null);
+    if (listHiddenByCard) {
+      setIsVehicleListCollapsed(false);
+      setListHiddenByCard(false);
+    }
+  }, [listHiddenByCard]);
 
   const handleFocusVehicleOnMap = useCallback(
     (vehicle: Vehicle, zoom = 16) => {
@@ -647,6 +709,55 @@ function AppShell() {
     setAlertConfigVehicleId(vehicleId);
     setActiveSection('alert_configuration');
   }, []);
+
+  const [parcMenu, setParcMenu] = useState<string | null>(null);
+  const openParc = useCallback((menu: string) => {
+    setParcMenu(menu);
+    setActiveSection('parc');
+  }, []);
+
+  /** Cross-module links offered by the vehicle card on the tracking map */
+  const { setFitBoundsPoints } = mapOverlays;
+  const vehicleCardActions = useMemo<VehicleCardActions>(
+    () => ({
+      // Trajets tab: draw the chosen trip and frame it beside the card
+      onShowTrip: (_vehicle, trip) => {
+        setTripReplay(null);
+        setTrackingPath(trip.path);
+        setFitBoundsPoints(trip.path);
+      },
+      // "Rejouer sur la carte": animate the vehicle along the trip
+      onReplayTrip: (vehicle, trip) => {
+        setTrackingPath(null);
+        setTripReplay({
+          key: Date.now(),
+          vehicle,
+          from: trip.from,
+          to: trip.to,
+          start: trip.start,
+          day: trip.day,
+          durationMin: trip.durationMin,
+          path: trip.path,
+        });
+      },
+      onFollowLive: (vehicle) => handleFocusVehicleOnMap(vehicle, 17),
+      onShowTrack: (vehicle, trip) =>
+        handleShowTrajectoryTrack(
+          buildMockTrajectoryPath(vehicle, trip ? 8 + (trip.km % 8) : 12)
+        ),
+      onOpenReport: (vehicle) => handleOpenDetailedReport(vehicle.id),
+      onOpenMaintenance: () => openParc('maintenance'),
+      onOpenDocuments: () => openParc('documents'),
+      onEditVehicle: () => openParc('vehicles'),
+      onOpenDriver: () => openParc('drivers'),
+      onOpenAlerts: () => setActiveSection('alertes'),
+      onOpenAlertHistory: (vehicle) => {
+        setHistoryVehicleIds([vehicle.id]);
+        setActiveSection('alert_history');
+      },
+    }),
+    [handleFocusVehicleOnMap, handleShowTrajectoryTrack, handleOpenDetailedReport, openParc, setFitBoundsPoints]
+  );
 
   if (phase === 'welcome') {
     return (
@@ -693,6 +804,9 @@ function AppShell() {
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
+    if (section === 'parc') {
+      setParcMenu(null);
+    }
     if (section === 'alert_history') {
       setHistoryVehicleIds([]);
     }
@@ -758,7 +872,7 @@ function AppShell() {
 
         activeSection === 'parc' ?
         // Parc View
-        <ParcContent /> :
+        <ParcContent key={parcMenu ?? 'parc'} initialMenu={parcMenu} /> :
         activeSection === 'gestion_sinistres' ?
         // Gestion Sinistres View
         <GestionSinistres vehicles={MOCK_VEHICLES} /> :
@@ -826,11 +940,15 @@ function AppShell() {
               <MapView
               vehicles={mapVehicles}
               selectedVehicleId={selectedVehicleId}
-              onSelectVehicle={handleVehicleSelect}
-              onDeselectVehicle={() => setSelectedVehicleId(null)}
+              onSelectVehicle={handleMapVehicleSelect}
+              onDeselectVehicle={handleCloseVehicleCard}
               mapCenter={mapCenter}
               mapCenterZoom={mapCenterZoom}
               trackingPath={trackingPath}
+              fleetVehicles={MOCK_VEHICLES}
+              vehicleCardActions={vehicleCardActions}
+              tripReplay={tripReplay}
+              onCloseTripReplay={() => setTripReplay(null)}
               onMapCenterChange={() => setMapCenter(null)}
               basemap={mapOverlays.basemap}
               drawMode={mapOverlays.drawMode}
@@ -948,7 +1066,7 @@ function AppShell() {
             )}
 
             {/* Left: Forms | Route via | Gestion | Vehicle List */}
-            <div className="fixed inset-y-0 left-0 z-40 w-full lg:absolute lg:z-30 lg:w-auto">
+            <div data-left-panel className="fixed inset-y-0 left-0 z-40 w-full lg:absolute lg:z-30 lg:w-auto">
               {mapOverlays.routeCreateOpen ? (
                 <RouteCreatePanel
                   open={mapOverlays.routeCreateOpen}
@@ -1197,39 +1315,33 @@ function AppShell() {
 
             {/* Right: Monitoring Center Card (Floating Overlay) */}
             <div className="absolute right-2 bottom-2 lg:right-4 lg:bottom-4 z-50">
-              <Sidebar
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              mode={sidebarMode}
+              <MonitoringCenterCard
               isCollapsed={isMonitoringCollapsed}
               onToggleCollapse={handleToggleMonitoring}
-              position="floating-right"
-              statusFilter={statusFilter}
               statusCounts={statusCounts}
-              onToggleStatusFilter={toggleStatusFilter} />
-            
+              statusFilter={statusFilter}
+              onToggleStatusFilter={toggleStatusFilter}
+              onClearStatusFilter={() => setStatusFilter(new Set())}
+              shownOnMap={mapVehicles.length}
+              criticalCount={criticalVehicleCount}
+              onOpenAlerts={() => setActiveSection('alertes')} />
             </div>
 
             {/* AI Chat Button - Positioned above Monitoring Center */}
             {!isAIChatOpen &&
           <button
+            type="button"
+            aria-label="Ouvrir l’assistant TUNAVI"
             onClick={() => setIsAIChatOpen(true)}
-            className="absolute right-2 bottom-16 lg:right-4 lg:bottom-[100px] group z-30">
-            
+            className="absolute right-2 bottom-16 lg:right-4 lg:bottom-[100px] group z-30 rounded-[18px] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#2F6BFF]">
+
                 <div className="relative">
-                  {/* Main button - no background */}
-                  <div className="relative w-14 h-14 lg:w-20 lg:h-20 flex items-center justify-center transition-all duration-300 group-hover:scale-110">
-                    <img
-                  src="/unnamed__8_-removebg-preview.png"
-                  alt="Assistant TUNAVI"
-                  className="w-full h-full object-contain drop-shadow-lg" />
-                
+                  <div className="relative w-12 h-12 lg:w-14 lg:h-14 rounded-[17px] shadow-[0_10px_24px_rgba(47,107,255,0.35)] transition-transform duration-200 group-hover:-translate-y-0.5 group-hover:scale-105">
+                    <AssistantIcon variant="tile" size={56} className="w-full h-full" />
                   </div>
 
-                  {/* Badge indicator */}
-                  <div className="absolute top-0 right-0 w-5 h-5 bg-emerald-500 rounded-full border-2 border-white flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full" />
-                  </div>
+                  {/* Online indicator */}
+                  <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-[#16A34A] rounded-full border-2 border-white" />
                 </div>
 
                 {/* Tooltip */}

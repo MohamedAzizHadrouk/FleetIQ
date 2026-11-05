@@ -22,8 +22,20 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { MapLegend } from './MapLegend';
 import { VehicleMapInfoCard } from './VehicleMapInfoCard';
-import { vehicleIcon3dMarkup } from '@/features/parc/vehicle-icons-3d';
-import type { VehicleIconType } from '@/features/parc/vehicle-types';
+import type { VehicleCardActions } from './VehicleMapInfoCard';
+import {
+  FIQ,
+  FLEETIQ_MARKER_BOX,
+  fleetiqMarkerHtml,
+  toFleetiqStatus,
+  toFleetiqType,
+} from '@/features/fleetiq/vehicle-sprite';
+import {
+  ensureAlertStore,
+  getCriticalAlertVehicleIds,
+} from '@/features/fleetiq/vehicle-card-data';
+import { cardCoveredWidth, cardDockLeft } from '@/features/fleetiq/map-dock';
+import { TripReplayLayer, type TripReplayRequest } from './TripReplay';
 import type {
   BasemapType,
   DefaultZoneOverlay,
@@ -47,58 +59,45 @@ import { fetchDrivingRoute } from '../lib/osrm-routing';
 import { approxPxDistance } from '../lib/polygon-geometry';
 import { getTunisiaProvince } from '../data/tunisia-provinces';
 
-/** Popup anchored above selected vehicle marker; follows pan/zoom */
+/** Fly so `latlng` lands in the middle of the map area not covered by the docked card */
+function flyToBesideCard(map: L.Map, latlng: L.LatLngExpression, zoom: number, duration: number) {
+  const inset = cardCoveredWidth(map);
+  const target = map.project(latlng, zoom).subtract([inset / 2, 0]);
+  map.flyTo(map.unproject(target, zoom), zoom, { animate: true, duration });
+}
+
+/** Vehicle card docked at the top-left of the map (stays put while the map moves) */
 function SelectedVehiclePopupOverlay({
   vehicle,
   onClose,
+  actions,
 }: {
   vehicle: Vehicle;
   onClose: () => void;
+  actions?: VehicleCardActions;
 }) {
   const map = useMap();
-  const popupRef = useRef<HTMLDivElement>(null);
   const [point, setPoint] = useState({ x: 16, y: 16 });
-  const [latitude, longitude] = vehicle.coordinates;
 
   useEffect(() => {
     const update = () => {
-      const p = map.latLngToContainerPoint(
-        L.latLng(latitude, longitude)
-      );
       const bounds = map.getContainer().getBoundingClientRect();
-      const popup = popupRef.current?.getBoundingClientRect();
-      const width = popup?.width ?? 460;
-      const height = popup?.height ?? 610;
-      setPoint({
-        x: Math.max(8, Math.min(bounds.left + p.x - width / 2, window.innerWidth - width - 8)),
-        y: Math.max(8, Math.min(bounds.top + p.y - height - 16, window.innerHeight - height - 8)),
-      });
+      setPoint({ x: bounds.left + cardDockLeft(map), y: bounds.top + 16 });
     };
     update();
     const observer = new ResizeObserver(update);
-    if (popupRef.current) observer.observe(popupRef.current);
+    observer.observe(map.getContainer());
+    const panel = document.querySelector('[data-left-panel]');
+    if (panel) observer.observe(panel);
     window.addEventListener('resize', update);
-    window.addEventListener('scroll', update, true);
-    map.on('move', update);
-    map.on('zoom', update);
-    map.on('zoomend', update);
-    map.on('viewreset', update);
-    map.on('moveend', update);
     return () => {
       observer.disconnect();
       window.removeEventListener('resize', update);
-      window.removeEventListener('scroll', update, true);
-      map.off('move', update);
-      map.off('zoom', update);
-      map.off('zoomend', update);
-      map.off('viewreset', update);
-      map.off('moveend', update);
     };
-  }, [map, vehicle.id, latitude, longitude]);
+  }, [map]);
 
   return createPortal(
     <div
-      ref={popupRef}
       className="leaflet-vehicle-info-popup"
       style={{
         position: 'fixed',
@@ -111,7 +110,7 @@ function SelectedVehiclePopupOverlay({
       onDoubleClick={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
     >
-      <VehicleMapInfoCard vehicle={vehicle} onClose={onClose} />
+      <VehicleMapInfoCard vehicle={vehicle} onClose={onClose} actions={actions} />
     </div>,
     document.body
   );
@@ -194,10 +193,12 @@ function MapController({
   onFitBoundsDone: () => void;
 }) {
   const map = useMap();
+  // Fly to the selected vehicle once per selection (not after every fit / fly)
+  const flownToRef = useRef<string | null>(null);
   useEffect(() => {
     if (fitBoundsPoints?.length) {
       map.fitBounds(fitBoundsPoints, {
-        paddingTopLeft: [380, 48],
+        paddingTopLeft: [selectedVehicle ? Math.max(380, cardCoveredWidth(map) + 32) : 380, 48],
         paddingBottomRight: [48, 48],
         animate: true,
         duration: 1.2,
@@ -211,14 +212,13 @@ function MapController({
       return;
     }
     if (mapCenter) {
-      map.flyTo(mapCenter, mapCenterZoom ?? 16, { animate: true, duration: 1.5 });
+      if (selectedVehicle) flyToBesideCard(map, mapCenter, mapCenterZoom ?? 16, 1.5);
+      else map.flyTo(mapCenter, mapCenterZoom ?? 16, { animate: true, duration: 1.5 });
       onMapCenterChange();
-    } else if (selectedVehicle) {
-      map.flyTo(selectedVehicle.coordinates, 15, {
-        animate: true,
-        duration: 1.5,
-      });
+    } else if (selectedVehicle && flownToRef.current !== selectedVehicle.id) {
+      flyToBesideCard(map, selectedVehicle.coordinates, 15, 1.5);
     }
+    flownToRef.current = selectedVehicle?.id ?? null;
   }, [
     selectedVehicle,
     mapCenter,
@@ -643,107 +643,23 @@ function GeofenceDraftEditor({
   );
 }
 
-function headingSectorPath(
-  cx: number,
-  cy: number,
-  radius: number,
-  halfAngleDeg: number
-): string {
-  const toRad = (d: number) => (d * Math.PI) / 180;
-  // Sector pointing north (up); CSS/SVG rotate(heading) then faces travel direction
-  const start = toRad(-90 - halfAngleDeg);
-  const end = toRad(-90 + halfAngleDeg);
-  const x1 = cx + radius * Math.cos(start);
-  const y1 = cy + radius * Math.sin(start);
-  const x2 = cx + radius * Math.cos(end);
-  const y2 = cy + radius * Math.sin(end);
-  return `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 0 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
-}
-
 function createVehicleIcon(
-  status: string,
+  vehicle: Vehicle,
   isSelected: boolean,
-  iconType?: VehicleIconType,
-  heading?: number
+  hasCriticalAlert: boolean
 ) {
-  const statusColor =
-    status === 'active'
-      ? '#10b981'
-      : status === 'idle'
-        ? '#f43f5e'
-        : '#94a3b8';
-  const size = isSelected ? 52 : 44;
-  const glyphSize = isSelected ? 40 : 34;
-  const glyph = vehicleIcon3dMarkup(iconType, glyphSize);
-  const badge = 12;
-  const box = 96;
-  const cx = box / 2;
-  const cy = box / 2;
-  const coneRadius = 40;
-  const halfAngle = 38;
-  const h = typeof heading === 'number' ? ((heading % 360) + 360) % 360 : 0;
-  const showCone = typeof heading === 'number';
-  const conePath = headingSectorPath(cx, cy, coneRadius, halfAngle);
-  const badgeLeft = (box - size) / 2;
-  const badgeTop = (box - size) / 2;
-
+  const box = FLEETIQ_MARKER_BOX;
   return L.divIcon({
     className: 'custom-marker',
-    html: `
-      <div style="
-        width: ${box}px;
-        height: ${box}px;
-        position: relative;
-        overflow: visible;
-      ">
-        ${
-          showCone
-            ? `<svg width="${box}" height="${box}" style="position:absolute;inset:0;pointer-events:none;overflow:visible;">
-          <g transform="rotate(${h} ${cx} ${cy})">
-            <path d="${conePath}" fill="#3b82f6" fill-opacity="0.38"/>
-          </g>
-        </svg>`
-            : ''
-        }
-        <div style="
-          position: absolute;
-          left: ${badgeLeft}px;
-          top: ${badgeTop}px;
-          width: ${size}px;
-          height: ${size}px;
-          filter: drop-shadow(0 4px 8px rgba(15,23,42,0.35));
-        ">
-          <div style="
-            width: ${size}px;
-            height: ${size}px;
-            border-radius: 50%;
-            background: #ffffff;
-            border: 3px solid #2563eb;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            box-sizing: border-box;
-          ">
-            ${glyph}
-          </div>
-          <div style="
-            position: absolute;
-            right: 0;
-            bottom: 0;
-            width: ${badge}px;
-            height: ${badge}px;
-            border-radius: 50%;
-            background: ${statusColor};
-            border: 2px solid white;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-          "></div>
-        </div>
-      </div>
-    `,
+    html: fleetiqMarkerHtml({
+      type: toFleetiqType(vehicle.iconType),
+      status: toFleetiqStatus(vehicle.status, hasCriticalAlert),
+      heading: vehicle.heading,
+      selected: isSelected,
+    }),
     iconSize: [box, box],
-    iconAnchor: [cx, cy],
-    popupAnchor: [0, -size / 2 - 8],
+    iconAnchor: [box / 2, box / 2],
+    popupAnchor: [0, -box / 2],
   });
 }
 
@@ -773,11 +689,11 @@ function createVehicleClusterIcon(count: number) {
     className: 'vehicle-cluster-icon',
     html: `<div style="
       width:${size}px;height:${size}px;border-radius:50%;
-      background:#10b981;border:3px solid white;
-      box-shadow:0 3px 10px rgba(0,0,0,.35);
+      background:${FIQ.navy};border:3px solid white;
+      box-shadow:0 0 0 3px ${FIQ.blue}55, 0 6px 16px rgba(15,27,61,.3);
       display:flex;flex-direction:column;align-items:center;justify-content:center;
-      color:white;font-weight:700;font-size:${size < 42 ? 11 : 13}px;line-height:1.1;
-      font-family:system-ui,sans-serif;
+      color:white;font-weight:800;font-size:${size < 42 ? 11 : 13}px;line-height:1.1;
+      font-family:'Plus Jakarta Sans',system-ui,sans-serif;
     ">
       <span style="font-size:9px;opacity:.9;letter-spacing:.02em">V</span>
       <span>${count}</span>
@@ -961,6 +877,13 @@ interface MapViewProps {
   selectedOverlayId?: string | null;
   geofenceDraftInteractive?: boolean;
   legendHidden?: boolean;
+  /** Whole fleet (unfiltered) — used to share alert state with the Alerts module */
+  fleetVehicles?: Vehicle[];
+  /** Cross-module actions offered by the vehicle card */
+  vehicleCardActions?: VehicleCardActions;
+  /** Animated replay of a trip (vehicle drives along the real road) */
+  tripReplay?: TripReplayRequest | null;
+  onCloseTripReplay?: () => void;
 }
 
 export function MapView({
@@ -1008,9 +931,19 @@ export function MapView({
   selectedOverlayId = null,
   geofenceDraftInteractive = true,
   legendHidden = false,
+  fleetVehicles,
+  vehicleCardActions,
+  tripReplay = null,
+  onCloseTripReplay = () => {},
 }: MapViewProps) {
+  // While a trip is replayed, its vehicle is drawn by the replay layer instead
+  const shownVehicles = tripReplay
+    ? vehicles.filter((v) => v.id !== tripReplay.vehicle.id)
+    : vehicles;
   const selectedVehicle =
     vehicles.find((v) => v.id === selectedVehicleId) || null;
+  ensureAlertStore(fleetVehicles ?? vehicles);
+  const criticalIds = getCriticalAlertVehicleIds();
 
   useEffect(() => {
     if (!selectedVehicleId || !onDeselectVehicle) return;
@@ -1019,7 +952,7 @@ export function MapView({
       if (!(target instanceof Element)) return;
       if (
         target.closest(
-          '.leaflet-vehicle-info-popup, .custom-marker, [data-vehicle-row]'
+          '.leaflet-vehicle-info-popup, .custom-marker, .trip-replay-panel, [data-vehicle-row]'
         )
       ) {
         return;
@@ -1123,22 +1056,23 @@ export function MapView({
 
         {clusterVehicles && !mapBusy ? (
           <VehicleClusterLayer
-            vehicles={vehicles}
+            vehicles={shownVehicles}
             selectedVehicleId={selectedVehicleId}
             onSelectVehicle={onSelectVehicle}
             drawMode={drawMode}
+            criticalIds={criticalIds}
           />
         ) : (
-          vehicles.map((vehicle) => (
+          shownVehicles.map((vehicle) => (
             <Marker
               key={vehicle.id}
               position={vehicle.coordinates}
               interactive={!mapBusy}
+              zIndexOffset={selectedVehicleId === vehicle.id ? 1000 : 0}
               icon={createVehicleIcon(
-                vehicle.status,
+                vehicle,
                 selectedVehicleId === vehicle.id,
-                vehicle.iconType,
-                vehicle.heading
+                criticalIds.has(vehicle.id)
               )}
               eventHandlers={{
                 click: () => {
@@ -1147,7 +1081,7 @@ export function MapView({
                 },
               }}
             >
-              <Tooltip direction="top" offset={[0, -28]} opacity={0.95}>
+              <Tooltip direction="top" offset={[0, -32]} opacity={0.95}>
                 <span className="text-xs font-semibold">
                   {vehicle.matricule || vehicle.name}
                 </span>
@@ -1456,10 +1390,15 @@ export function MapView({
             />
           )}
 
+        {tripReplay && (
+          <TripReplayLayer key={tripReplay.key} replay={tripReplay} onClose={onCloseTripReplay} />
+        )}
+
         {selectedVehicle && (
           <SelectedVehiclePopupOverlay
             vehicle={selectedVehicle}
             onClose={() => onDeselectVehicle?.()}
+            actions={vehicleCardActions}
           />
         )}
       </MapContainer>
@@ -1483,12 +1422,15 @@ function VehicleClusterLayer({
   selectedVehicleId,
   onSelectVehicle,
   drawMode,
+  criticalIds,
 }: {
   vehicles: Vehicle[];
   selectedVehicleId: string | null;
   onSelectVehicle: (v: Vehicle) => void;
   drawMode: DrawMode;
+  criticalIds: Set<string>;
 }) {
+  const criticalKey = Array.from(criticalIds).sort().join(',');
   const map = useMap();
 
   useEffect(() => {
@@ -1509,17 +1451,13 @@ function VehicleClusterLayer({
     vehicles.forEach((vehicle) => {
       const isSelected = selectedVehicleId === vehicle.id;
       const marker = L.marker(vehicle.coordinates, {
-        icon: createVehicleIcon(
-          vehicle.status,
-          isSelected,
-          vehicle.iconType,
-          vehicle.heading
-        ),
+        icon: createVehicleIcon(vehicle, isSelected, criticalIds.has(vehicle.id)),
         pane: 'vehicleClusters',
+        zIndexOffset: isSelected ? 1000 : 0,
       });
       marker.bindTooltip(vehicle.matricule || vehicle.name, {
         direction: 'top',
-        offset: [0, -28],
+        offset: [0, -32],
         opacity: 0.95,
       });
       marker.on('click', () => {
@@ -1532,7 +1470,9 @@ function VehicleClusterLayer({
     return () => {
       map.removeLayer(group);
     };
-  }, [map, vehicles, selectedVehicleId, onSelectVehicle, drawMode]);
+    // criticalKey stands in for criticalIds (a new Set each render)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map, vehicles, selectedVehicleId, onSelectVehicle, drawMode, criticalKey]);
 
   return null;
 }

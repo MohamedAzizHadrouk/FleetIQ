@@ -82,3 +82,40 @@
   background: transparent !important;
   border: none !important;
 }
+
+/* FleetIQ vehicle markers (export "Card B+ & icônes véhicules") */
+.leaflet-marker-icon.custom-marker {
+  background: transparent;
+  border: none;
+}
+.fiq-marker {
+  transition: transform 160ms ease;
+}
+.custom-marker:hover .fiq-marker:not(.is-selected) {
+  transform: scale(1.08);
+}
+.fiq-marker.is-selected {
+  transform: scale(1.18);
+}
+.fiq-marker-pulse {
+  position: absolute;
+  inset: -2px;
+  border-radius: 50%;
+  border: 2px solid;
+  animation: fiq-pulse 1.6s ease-out infinite;
+}
+@keyframes fiq-pulse {
+  from { transform: scale(1); opacity: 0.9; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fiq-marker-pulse { animation: none; }
+}
+.fiq-font {
+  font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif;
+}
+.leaflet-marker-icon.trip-replay-pin,
+.leaflet-marker-icon.trip-replay-vehicle {
+  background: transparent;
+  border: none;
+}

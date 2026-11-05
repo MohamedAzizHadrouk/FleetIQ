@@ -185,8 +185,13 @@ function FuelPriceSettingsModal({
     </AnimatePresence>);
 
 }
-export function ParcContent() {
-  const [selectedMenu, setSelectedMenu] = useState<string | null>(null);
+export function ParcContent({
+  initialMenu = null,
+}: {
+  /** Open directly on a sub-module (e.g. 'maintenance', 'documents') */
+  initialMenu?: string | null;
+} = {}) {
+  const [selectedMenu, setSelectedMenu] = useState<string | null>(initialMenu);
   const [searchTerm, setSearchTerm] = useState('');
   const [dateDebut, setDateDebut] = useState('');
   const [dateFin, setDateFin] = useState('');
