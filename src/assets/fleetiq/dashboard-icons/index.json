@@ -1,0 +1,376 @@
+{
+  "tones": {
+    "red": "#E5484D",
+    "amber": "#F59E0B",
+    "green": "#16A34A",
+    "blue": "#2F6BFF"
+  },
+  "inactive": "#C9D1E0",
+  "groups": [
+    {
+      "id": "access",
+      "label": "Accès & confort",
+      "en": "Vehicle Access & Comfort"
+    },
+    {
+      "id": "lighting",
+      "label": "Éclairage & signalisation",
+      "en": "Lighting & Signaling"
+    },
+    {
+      "id": "driving",
+      "label": "Conduite & pédales",
+      "en": "Driving & Pedals"
+    },
+    {
+      "id": "mechanical",
+      "label": "Alertes mécaniques",
+      "en": "Vehicle Alerts & Mechanical Indicators"
+    },
+    {
+      "id": "energy",
+      "label": "Carburant, énergie & équipements",
+      "en": "Fuel, Energy & Special Equipment"
+    },
+    {
+      "id": "other",
+      "label": "Autres indicateurs",
+      "en": "Other Indicators"
+    }
+  ],
+  "icons": [
+    {
+      "id": "hood",
+      "label": "Capot",
+      "en": "Hood / Bonnet",
+      "meaning": "Indique si le capot moteur est ouvert ou fermé.",
+      "group": "access",
+      "tone": "red",
+      "file": "hood.svg"
+    },
+    {
+      "id": "trunk",
+      "label": "Coffre",
+      "en": "Trunk / Boot",
+      "meaning": "Indique si le coffre est ouvert ou fermé.",
+      "group": "access",
+      "tone": "red",
+      "file": "trunk.svg"
+    },
+    {
+      "id": "seatbelt",
+      "label": "Ceinture de sécurité conducteur",
+      "en": "Driver Seatbelt",
+      "meaning": "Indique si la ceinture du conducteur est bouclée.",
+      "group": "access",
+      "tone": "red",
+      "file": "seatbelt.svg"
+    },
+    {
+      "id": "ac",
+      "label": "Climatisation",
+      "en": "Air Conditioning (A/C)",
+      "meaning": "Indique si la climatisation est active.",
+      "group": "access",
+      "tone": "green",
+      "file": "ac.svg"
+    },
+    {
+      "id": "central_lock",
+      "label": "Fermeture centrale",
+      "en": "Central Locking",
+      "meaning": "Indique l’état du verrouillage centralisé.",
+      "group": "access",
+      "tone": "green",
+      "file": "central_lock.svg"
+    },
+    {
+      "id": "door",
+      "label": "Portes",
+      "en": "Doors",
+      "meaning": "État général d’ouverture des portes.",
+      "group": "access",
+      "tone": "red",
+      "file": "door.svg"
+    },
+    {
+      "id": "front_right_door",
+      "label": "Porte passager",
+      "en": "Passenger Door",
+      "meaning": "Indique l’état de la porte passager.",
+      "group": "access",
+      "tone": "red",
+      "file": "front_right_door.svg"
+    },
+    {
+      "id": "driver_door",
+      "label": "Porte du conducteur",
+      "en": "Driver Door",
+      "meaning": "Indique l’état de la porte conducteur.",
+      "group": "access",
+      "tone": "red",
+      "file": "driver_door.svg"
+    },
+    {
+      "id": "rear_left_door",
+      "label": "Porte arrière gauche",
+      "en": "Rear Left Door",
+      "meaning": "Indique l’état de la porte arrière gauche.",
+      "group": "access",
+      "tone": "red",
+      "file": "rear_left_door.svg"
+    },
+    {
+      "id": "rear_right_door",
+      "label": "Porte arrière droite",
+      "en": "Rear Right Door",
+      "meaning": "Indique l’état de la porte arrière droite.",
+      "group": "access",
+      "tone": "red",
+      "file": "rear_right_door.svg"
+    },
+    {
+      "id": "parking_heater",
+      "label": "Chauffage de stationnement",
+      "en": "Parking Heater",
+      "meaning": "Indique si le chauffage auxiliaire de stationnement est actif.",
+      "group": "access",
+      "tone": "green",
+      "file": "parking_heater.svg"
+    },
+    {
+      "id": "position_lights",
+      "label": "Feux de position",
+      "en": "Position / Parking Lights",
+      "meaning": "Indique que les feux de position sont allumés.",
+      "group": "lighting",
+      "tone": "green",
+      "file": "position_lights.svg"
+    },
+    {
+      "id": "rear_fog",
+      "label": "Feu brouillard arrière",
+      "en": "Rear Fog Light",
+      "meaning": "Indique que le feu de brouillard arrière est activé.",
+      "group": "lighting",
+      "tone": "amber",
+      "file": "rear_fog.svg"
+    },
+    {
+      "id": "front_fog",
+      "label": "Feu brouillard avant",
+      "en": "Front Fog Light",
+      "meaning": "Indique que les feux de brouillard avant sont activés.",
+      "group": "lighting",
+      "tone": "green",
+      "file": "front_fog.svg"
+    },
+    {
+      "id": "low_beam",
+      "label": "Feux de croisement",
+      "en": "Low Beam Headlights",
+      "meaning": "Indique que les feux de croisement sont allumés.",
+      "group": "lighting",
+      "tone": "green",
+      "file": "low_beam.svg"
+    },
+    {
+      "id": "turn_signals",
+      "label": "Feux clignotants",
+      "en": "Turn Signals / Indicators",
+      "meaning": "Indique que les clignotants sont actifs.",
+      "group": "lighting",
+      "tone": "green",
+      "file": "turn_signals.svg"
+    },
+    {
+      "id": "high_beam",
+      "label": "Feux de route",
+      "en": "High Beam Headlights",
+      "meaning": "Indique que les feux de route sont allumés.",
+      "group": "lighting",
+      "tone": "blue",
+      "file": "high_beam.svg"
+    },
+    {
+      "id": "handbrake",
+      "label": "Frein à main",
+      "en": "Parking Brake",
+      "meaning": "Indique si le frein à main est serré.",
+      "group": "driving",
+      "tone": "red",
+      "file": "handbrake.svg"
+    },
+    {
+      "id": "reverse_lights",
+      "label": "Marche arrière",
+      "en": "Reverse Gear",
+      "meaning": "Indique que la marche arrière est engagée.",
+      "group": "driving",
+      "tone": "green",
+      "file": "reverse_lights.svg"
+    },
+    {
+      "id": "cruise_control",
+      "label": "Régulateur de vitesse",
+      "en": "Cruise Control",
+      "meaning": "Indique si le régulateur de vitesse est actif.",
+      "group": "driving",
+      "tone": "green",
+      "file": "cruise_control.svg"
+    },
+    {
+      "id": "foot_brake",
+      "label": "Frein à pied",
+      "en": "Foot Brake",
+      "meaning": "Indique que la pédale de frein est enfoncée.",
+      "group": "driving",
+      "tone": "green",
+      "file": "foot_brake.svg"
+    },
+    {
+      "id": "clutch",
+      "label": "Pédale embrayage",
+      "en": "Clutch Pedal",
+      "meaning": "Indique que la pédale d’embrayage est enfoncée.",
+      "group": "driving",
+      "tone": "green",
+      "file": "clutch.svg"
+    },
+    {
+      "id": "brake_fluid_level",
+      "label": "Liquide de frein",
+      "en": "Brake Fluid Indicator",
+      "meaning": "Niveau ou circuit de liquide de frein anormal.",
+      "group": "mechanical",
+      "tone": "red",
+      "file": "brake_fluid_level.svg"
+    },
+    {
+      "id": "coolant_level",
+      "label": "Liquide de refroidissement bas",
+      "en": "Low Coolant Level",
+      "meaning": "Le niveau de liquide de refroidissement est trop bas.",
+      "group": "mechanical",
+      "tone": "amber",
+      "file": "coolant_level.svg"
+    },
+    {
+      "id": "battery",
+      "label": "Batterie",
+      "en": "Battery Indicator",
+      "meaning": "État de la batterie ou alerte de charge.",
+      "group": "mechanical",
+      "tone": "red",
+      "file": "battery.svg"
+    },
+    {
+      "id": "brake_system_failure",
+      "label": "Panne système de freinage",
+      "en": "Brake System Failure",
+      "meaning": "Dysfonctionnement du système de freinage.",
+      "group": "mechanical",
+      "tone": "red",
+      "file": "brake_system_failure.svg"
+    },
+    {
+      "id": "oil_pressure",
+      "label": "Pression huile",
+      "en": "Oil Pressure Indicator",
+      "meaning": "Pression d’huile moteur anormale ou basse.",
+      "group": "mechanical",
+      "tone": "red",
+      "file": "oil_pressure.svg"
+    },
+    {
+      "id": "temperature",
+      "label": "Moteur chaud",
+      "en": "Engine Overheating",
+      "meaning": "La température moteur est trop élevée.",
+      "group": "mechanical",
+      "tone": "red",
+      "file": "temperature.svg"
+    },
+    {
+      "id": "abs",
+      "label": "Panne ABS",
+      "en": "ABS Failure Indicator",
+      "meaning": "Dysfonctionnement du système antiblocage (ABS).",
+      "group": "mechanical",
+      "tone": "amber",
+      "file": "abs.svg"
+    },
+    {
+      "id": "check_engine",
+      "label": "Check Engine",
+      "en": "Check Engine Light",
+      "meaning": "Défaut moteur ou de gestion moteur.",
+      "group": "mechanical",
+      "tone": "amber",
+      "file": "check_engine.svg"
+    },
+    {
+      "id": "airbag",
+      "label": "Airbags",
+      "en": "Airbag Indicator",
+      "meaning": "Alerte ou défaut du système airbag.",
+      "group": "mechanical",
+      "tone": "red",
+      "file": "airbag.svg"
+    },
+    {
+      "id": "oil_level",
+      "label": "Niveau huile bas",
+      "en": "Low Engine Oil Level",
+      "meaning": "Le niveau d’huile moteur est trop bas.",
+      "group": "mechanical",
+      "tone": "amber",
+      "file": "oil_level.svg"
+    },
+    {
+      "id": "fuel",
+      "label": "Carburant bas",
+      "en": "Low Fuel",
+      "meaning": "Le niveau de carburant est bas.",
+      "group": "energy",
+      "tone": "amber",
+      "file": "fuel.svg"
+    },
+    {
+      "id": "ev_charging",
+      "label": "Recharge véhicule électrique",
+      "en": "EV Battery Charging",
+      "meaning": "Le véhicule électrique est en charge.",
+      "group": "energy",
+      "tone": "green",
+      "file": "ev_charging.svg"
+    },
+    {
+      "id": "fuel_source",
+      "label": "Source de carburant",
+      "en": "Fuel Source",
+      "meaning": "Source ou circuit d’alimentation en carburant.",
+      "group": "energy",
+      "tone": "green",
+      "file": "fuel_source.svg"
+    },
+    {
+      "id": "pto",
+      "label": "Prise de force (PTO)",
+      "en": "Power Take-Off (PTO)",
+      "meaning": "Équipement auxiliaire entraîné par le moteur actif (ex. pompe hydraulique).",
+      "group": "energy",
+      "tone": "green",
+      "file": "pto.svg"
+    },
+    {
+      "id": "maintenance",
+      "label": "Appel de service",
+      "en": "Service Call Indicator",
+      "meaning": "Demande de service, d’assistance ou alerte d’entretien.",
+      "group": "other",
+      "tone": "amber",
+      "file": "maintenance.svg"
+    }
+  ]
+}

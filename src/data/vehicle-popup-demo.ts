@@ -29,6 +29,7 @@ export function withVehiclePopupDemo(vehicle: Vehicle): Vehicle {
     waterPresence: false,
     timestamp,
     cardId: `RFID-${seed.toString(16).toUpperCase().padStart(8, '0')}`,
+    powerVoltage: vehicle.status === 'offline' ? 0 : (124 + (seed % 20)) / 10,
   };
   // Preserve supplied readings, including zero values and false sensor states.
   const supplied = Object.fromEntries(

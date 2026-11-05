@@ -42,6 +42,8 @@ export interface Vehicle {
   waterPresence?: boolean;
   timestamp?: string;
   cardId?: string;
+  /** External power supply voltage seen by the tracker (V) */
+  powerVoltage?: number;
 }
 
 export type DurationUnit = 'days' | 'weeks' | 'months';

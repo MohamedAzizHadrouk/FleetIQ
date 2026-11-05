@@ -11,7 +11,7 @@ import {
   AlertTriangle,
   Check } from
 'lucide-react';
-import { DateTimePicker } from './DateTimePicker';
+import { DateTimeRangePicker } from './DateTimeRangePicker';
 import { Vehicle } from '../types';
 export type SuivieAction =
 'suivie_generale' |
@@ -325,22 +325,17 @@ export function SuivieFilterBar({
             </AnimatePresence>
           </div>
 
-          {/* Date Range - Spans 4 columns (2 each) */}
-          <div className="lg:col-span-2">
-            <DateTimePicker
-              label="Date début"
-              value={startDate}
-              onChange={onStartDateChange}
-              placeholder="Début" />
-            
-          </div>
-          <div className="lg:col-span-2">
-            <DateTimePicker
-              label="Date fin"
-              value={endDate}
-              onChange={onEndDateChange}
-              placeholder="Fin" />
-            
+          {/* Period (start + end with hours) - Spans 4 columns */}
+          <div className="lg:col-span-4">
+            <DateTimeRangePicker
+              label="Période"
+              start={startDate}
+              end={endDate}
+              onChange={(s, e) => {
+                onStartDateChange(s);
+                onEndDateChange(e);
+              }}
+              placeholder="Choisir une période" />
           </div>
 
           {/* Action Selection - Spans 3 columns */}

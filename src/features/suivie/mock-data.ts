@@ -1,3 +1,4 @@
+import { formatHms, getVehicleTrajectory } from '@/features/fleetiq/trajectory-data';
 import type { Vehicle } from '@/types';
 import {
   SUIVIE_DEPARTMENTS,
@@ -508,17 +509,12 @@ export function buildTrajectoryRows(vehicles: Vehicle[]): TrajectoryRow[] {
   const rows: TrajectoryRow[] = [];
   vehicles.forEach((vehicle, index) => {
     const { department, rand } = enrichVehicleMeta(vehicle, index);
-    const speedVal = vehicleSpeedKmh(vehicle, rand);
-    const count = 2 + Math.floor(rand() * 3);
-    for (let i = 0; i < count; i++) {
-      const begin = hoursAgo(rand, 20);
-      const isRun =
-        i === 0
-          ? vehicle.status === 'active'
-          : vehicle.status === 'offline'
-            ? false
-            : rand() > 0.4;
-      const [lat, lng] = vehicle.coordinates;
+    // Real road trajectory (same data as the map, replay and speed chart)
+    const segments = getVehicleTrajectory(vehicle)?.segments ?? [];
+    segments.forEach((seg) => {
+      const begin = seg.start;
+      const isRun = seg.kind === 'Circulation';
+      const [lat, lng] = seg.position;
       const fuelLow = vehicle.status === 'offline' ? rand() > 0.5 : rand() > 0.85;
       const fuelPct = fuelLow ? Math.floor(rand() * 15) : Math.floor(20 + rand() * 80);
       const battery =
@@ -526,14 +522,14 @@ export function buildTrajectoryRows(vehicles: Vehicle[]): TrajectoryRow[] {
           ? 0
           : Math.max(5, Math.min(100, vehicle.batteryLevel + Math.floor((rand() - 0.5) * 10)));
       rows.push({
-        id: `trj-${vehicle.id}-${i}`,
+        id: seg.id,
         vehicleId: vehicle.id,
         vehicleName: vehicle.name,
         department,
         filterDate: begin.toISOString(),
         StopRun: isRun ? 'Circulation' : 'Stop',
         AlertIcon:
-          vehicle.status === 'offline' || (isRun && speedVal >= 110) || fuelLow
+          vehicle.status === 'offline' || (isRun && seg.maxSpeed >= 110) || fuelLow
             ? '⚠'
             : rand() > 0.85
               ? '⚠'
@@ -545,10 +541,10 @@ export function buildTrajectoryRows(vehicles: Vehicle[]): TrajectoryRow[] {
               ? pick(rand, ['GPS OK', 'Ignition', 'En route'])
               : pick(rand, ['Idle', 'Stop', 'Ignition']),
         StartDate: formatDisplay(begin),
-        Period: `${10 + Math.floor(rand() * 120)} min`,
-        Speed: `${isRun ? (i === 0 ? speedVal : Math.floor(20 + rand() * 80)) : 0} km/h`,
-        Distance: `${(isRun ? rand() * 50 : rand() * 2).toFixed(1)} km`,
-        Place: vehicle.location,
+        Period: formatHms(seg.durationMin),
+        Speed: `${seg.avgSpeed} km/h`,
+        Distance: `${seg.distanceKm.toFixed(1)} km`,
+        Place: seg.place,
         Fuel: fuelLow ? `${fuelPct}% ↓` : `${fuelPct}%`,
         BatteryLevel: `${battery}%`,
         IgnOn: isRun || vehicle.status === 'idle' ? 'ON' : 'OFF',
@@ -559,8 +555,8 @@ export function buildTrajectoryRows(vehicles: Vehicle[]): TrajectoryRow[] {
         EngineHours: `${Math.floor(200 + rand() * 2000)} h`,
         EngineTemperature: `${Math.floor(isRun ? 70 + rand() * 40 : 25 + rand() * 20)} °C`,
         RPM: String(isRun ? Math.floor(800 + rand() * 3200) : Math.floor(rand() * 200)),
-        Latitude: (lat + (rand() - 0.5) * 0.02).toFixed(6),
-        Longitude: (lng + (rand() - 0.5) * 0.02).toFixed(6),
+        Latitude: lat.toFixed(6),
+        Longitude: lng.toFixed(6),
         Report_Reason: pick(rand, ['Timer', 'Ignition', 'Distance', 'Alert']),
         LockStatus: rand() > 0.5 ? 'Verrouillé' : 'Déverrouillé',
         SealStatus: rand() > 0.3 ? 'Intact' : 'Rompu',
@@ -586,7 +582,7 @@ export function buildTrajectoryRows(vehicles: Vehicle[]): TrajectoryRow[] {
               : 'Déconnectée',
         waterdetected1: rand() > 0.85 ? 'Oui' : 'Non',
       });
-    }
+    });
   });
   return rows;
 }

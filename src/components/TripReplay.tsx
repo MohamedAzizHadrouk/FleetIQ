@@ -6,7 +6,12 @@ import { Crosshair, Pause, Play, RotateCcw, Route as RouteIcon, X } from 'lucide
 import type { Vehicle } from '@/types';
 import { FIQ, fleetiqMarkerHtml, FLEETIQ_MARKER_BOX, toFleetiqType } from '@/features/fleetiq/vehicle-sprite';
 import { buildReplayTimeline, replayAt } from '@/features/fleetiq/trip-replay';
-import { cardCoveredWidth } from '@/features/fleetiq/map-dock';
+import { cardCoveredWidth, leftPanelCoveredWidth } from '@/features/fleetiq/map-dock';
+
+/** Map pixels hidden on the left: the docked vehicle card if open, else the left table */
+function coveredLeft(map: L.Map): number {
+  return document.querySelector('.leaflet-vehicle-info-popup') ? cardCoveredWidth(map) : leftPanelCoveredWidth(map);
+}
 
 export interface TripReplayRequest {
   /** Changes on every "Rejouer" click so the replay restarts */
@@ -74,7 +79,7 @@ export function TripReplayLayer({ replay, onClose }: { replay: TripReplayRequest
     }).addTo(map);
     layers.current = { marker, travelled, casing };
 
-    const inset = cardCoveredWidth(map);
+    const inset = coveredLeft(map);
     map.fitBounds(L.latLngBounds(path), {
       paddingTopLeft: [inset + 48, 64],
       paddingBottomRight: [64, 210],
@@ -115,7 +120,7 @@ export function TripReplayLayer({ replay, onClose }: { replay: TripReplayRequest
     if (follow && playing) {
       // Visible area = right of the docked card, above the replay panel
       const size = map.getSize();
-      const inset = cardCoveredWidth(map);
+      const inset = coveredLeft(map);
       const box = { left: inset + 48, right: size.x - 64, top: 64, bottom: size.y - 200 };
       const p = map.latLngToContainerPoint(state.point);
       if (box.right > box.left && box.bottom > box.top &&

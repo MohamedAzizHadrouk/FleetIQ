@@ -36,6 +36,8 @@ import type { OnboardingModuleId } from './components/onboarding/module-registry
 import { SUIVIE_DEPARTMENTS } from './features/suivie/column-defs';
 import { buildMockTrajectoryPath } from './features/suivie/vehicle-row-actions';
 import { roadPlacement } from './features/fleetiq/road-position';
+import type { TrajectoryFocus, TrajectoryLayer, VehicleTrajectory } from './features/fleetiq/trajectory-data';
+import { defaultGeoVisibility } from './types/map-overlays';
 import type { VehicleCardActions } from './components/VehicleMapInfoCard';
 import type { TripReplayRequest } from './components/TripReplay';
 import { AssistantIcon } from './components/AssistantIcon';
@@ -493,6 +495,10 @@ function AppShell() {
   const [mapCenterZoom, setMapCenterZoom] = useState<number | null>(16);
   const [trackingPath, setTrackingPath] = useState<LatLng[] | null>(null);
   const [tripReplay, setTripReplay] = useState<TripReplayRequest | null>(null);
+  /** Stop / segment / chart point highlighted from the trajectory table */
+  const [trajectoryFocus, setTrajectoryFocus] = useState<TrajectoryFocus | null>(null);
+  /** All trajectories shown on the map in the trajectory view */
+  const [trajectoryLayers, setTrajectoryLayers] = useState<TrajectoryLayer[]>([]);
   const [activeTab, setActiveTab] = useState('suivie');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null
@@ -595,19 +601,6 @@ function AppShell() {
     !!mapOverlays.manageDialog ||
     (!isVehicleListCollapsed && !placingGeoOnly);
 
-  const [isMobileViewport, setIsMobileViewport] = useState(false);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 1023px)');
-    const update = () => setIsMobileViewport(mq.matches);
-    update();
-    if (mq.matches) {
-      setIsMonitoringCollapsed(true);
-    }
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
-
   const handleCloseLeftPanel = useCallback(() => {
     if (mapOverlays.geofenceModalOpen) {
       mapOverlays.closeEditForms();
@@ -655,12 +648,17 @@ function AppShell() {
     };
   }, []);
 
+  /** The vehicle card opens only from a click on a vehicle icon on the map */
+  const [vehicleCardOpen, setVehicleCardOpen] = useState(false);
+
+  /** Selection from the left table: highlight + centre, never open the card */
   const handleVehicleSelect = useCallback(
     (vehicle: Vehicle) => {
       if (vehicle.id !== selectedVehicleId) {
         setTripReplay(null);
         setTrackingPath(null);
       }
+      setVehicleCardOpen(false);
       setSelectedVehicleId(vehicle.id);
     },
     [selectedVehicleId]
@@ -677,6 +675,7 @@ function AppShell() {
         setTrackingPath(null);
       }
       setSelectedVehicleId(vehicle.id);
+      setVehicleCardOpen(true);
       if (!isVehicleListCollapsed) {
         setIsVehicleListCollapsed(true);
         setListHiddenByCard(true);
@@ -685,8 +684,37 @@ function AppShell() {
     [isVehicleListCollapsed, selectedVehicleId]
   );
 
+  const handleTrajectoryFocus = useCallback((focus: TrajectoryFocus | null) => {
+    setTrajectoryFocus(focus);
+    if (focus) {
+      setTripReplay(null);
+      setMapCenterZoom(15);
+      setMapCenter(focus.position);
+    }
+  }, []);
+
+  /** ▶ in the trajectory table: animate the vehicle along its real road trajectory */
+  const handleReplayTrajectory = useCallback((vehicle: Vehicle, traj: VehicleTrajectory) => {
+    const firstRun = traj.segments.find((g) => g.kind === 'Circulation');
+    const startAt = firstRun?.start ?? traj.start;
+    setTrajectoryFocus(null);
+    setTrackingPath(null);
+    setTripReplay({
+      key: Date.now(),
+      vehicle,
+      from: traj.from,
+      to: traj.to,
+      start: startAt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
+      day: startAt.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: '2-digit' }),
+      durationMin: Math.max(1, Math.round(traj.summary.runMin)),
+      path: traj.path,
+    });
+  }, []);
+
   const handleCloseVehicleCard = useCallback(() => {
+    setTrajectoryFocus(null);
     setSelectedVehicleId(null);
+    setVehicleCardOpen(false);
     setTripReplay(null);
     setTrackingPath(null);
     if (listHiddenByCard) {
@@ -985,12 +1013,15 @@ function AppShell() {
               selectedVehicleId={selectedVehicleId}
               onSelectVehicle={handleMapVehicleSelect}
               onDeselectVehicle={handleCloseVehicleCard}
+              showVehicleCard={vehicleCardOpen}
               mapCenter={mapCenter}
               mapCenterZoom={mapCenterZoom}
               trackingPath={trackingPath}
               fleetVehicles={MOCK_VEHICLES}
               vehicleCardActions={vehicleCardActions}
               tripReplay={tripReplay}
+              trajectoryFocus={trajectoryFocus}
+              trajectoryLayers={trajectoryLayers}
               onCloseTripReplay={() => setTripReplay(null)}
               onMapCenterChange={() => setMapCenter(null)}
               basemap={mapOverlays.basemap}
@@ -1062,7 +1093,6 @@ function AppShell() {
                 mapOverlays.overlayPanelMode === 'edit' ||
                 mapOverlays.editTarget?.kind !== 'geofence'
               }
-              legendHidden={isMobileViewport && leftPanelOpen}
             />
             
             </div>
@@ -1352,6 +1382,22 @@ function AppShell() {
                   onClearTrajectoryTrack={handleClearTrajectoryTrack}
                   onOpenDetailedReport={handleOpenDetailedReport}
                   onOpenAlertConfiguration={handleOpenAlertConfiguration}
+                  onTrajectoryFocus={handleTrajectoryFocus}
+                  onTrajectoryLayersChange={setTrajectoryLayers}
+                  onReplayTrajectory={handleReplayTrajectory}
+                  onStopReplay={() => setTripReplay(null)}
+                  replayVehicleId={tripReplay?.vehicle.id ?? null}
+                  onSaveTrajectoryRoute={(vehicle, traj, name) => {
+                    mapOverlays.addRouteFromDraft({
+                      name,
+                      assignment: { mode: 'vehicle', ids: [vehicle.id] },
+                      alertType: 'hors_zone',
+                      visibility: defaultGeoVisibility(),
+                      points: traj.path,
+                      distanceMeters: Math.round(traj.summary.distanceKm * 1000),
+                      durationSeconds: Math.round(traj.summary.runMin * 60),
+                    });
+                  }}
                 />
               )}
             </div>

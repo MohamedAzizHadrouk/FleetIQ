@@ -20,7 +20,6 @@ import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
-import { MapLegend } from './MapLegend';
 import { VehicleMapInfoCard } from './VehicleMapInfoCard';
 import type { VehicleCardActions } from './VehicleMapInfoCard';
 import {
@@ -34,8 +33,94 @@ import {
   ensureAlertStore,
   getCriticalAlertVehicleIds,
 } from '@/features/fleetiq/vehicle-card-data';
-import { cardCoveredWidth, cardDockLeft } from '@/features/fleetiq/map-dock';
+import { cardCoveredWidth, cardDockLeft, leftPanelCoveredWidth } from '@/features/fleetiq/map-dock';
 import { TripReplayLayer, type TripReplayRequest } from './TripReplay';
+import type { TrajectoryFocus, TrajectoryLayer } from '@/features/fleetiq/trajectory-data';
+import { CalendarClock, Gauge, MapPin, Timer } from 'lucide-react';
+
+const STOP_ICON = L.divIcon({
+  className: 'trip-replay-pin',
+  html: `<svg width="34" height="34" viewBox="0 0 34 34" style="filter:drop-shadow(0 3px 6px rgba(15,27,61,.35))"><path d="M11 1h12l10 10v12L23 33H11L1 23V11z" fill="#E5484D" stroke="#fff" stroke-width="2.5"/><text x="17" y="20.5" text-anchor="middle" font-family="Plus Jakarta Sans,Arial,sans-serif" font-size="8.5" font-weight="800" fill="#fff">STOP</text></svg>`,
+  iconSize: [34, 34],
+  iconAnchor: [17, 17],
+});
+const POINT_ICON = L.divIcon({
+  className: 'trip-replay-pin',
+  html: '<div style="width:18px;height:18px;border-radius:50%;background:#2F6BFF;border:3px solid #fff;box-shadow:0 0 0 4px rgba(47,107,255,.25),0 3px 8px rgba(15,27,61,.35)"></div>',
+  iconSize: [18, 18],
+  iconAnchor: [9, 9],
+});
+
+function TipRow({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="w-6 h-6 rounded-lg bg-[#F0F3F9] text-[#2F6BFF] flex items-center justify-center shrink-0">{icon}</span>
+      <span className="flex-1 min-w-0 text-[11.5px] text-[#5B6B8C] whitespace-nowrap">{label}</span>
+      <span className="text-[12.5px] font-extrabold tabular-nums whitespace-nowrap">{value}</span>
+    </div>
+  );
+}
+
+/** Highlight of the trajectory row / chart point: marker + always-visible tooltip */
+function TrajectoryFocusLayer({ focus }: { focus: TrajectoryFocus }) {
+  const when = new Date(focus.time).toLocaleString('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const isStop = focus.kind === 'Stop';
+  const h = focus.durationMin != null ? Math.floor(focus.durationMin / 60) : 0;
+  const m = focus.durationMin != null ? Math.round(focus.durationMin % 60) : 0;
+  return (
+    <>
+      {focus.path && focus.path.length > 1 && (
+        <Polyline positions={focus.path} pathOptions={{ color: '#F59E0B', weight: 7, opacity: 0.9, lineCap: 'round' }} />
+      )}
+      <Marker key={`${focus.position[0]}-${focus.position[1]}-${focus.time}`} position={focus.position} icon={isStop ? STOP_ICON : POINT_ICON} zIndexOffset={3000}>
+        <Tooltip permanent direction="top" offset={[0, isStop ? -20 : -14]} opacity={1} className="fiq-traj-tooltip">
+          <div className="fiq-font w-[256px] text-[#0F1B3D]">
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11.5px] font-extrabold"
+                style={isStop ? { background: '#FDECEC', color: '#9B1C22' } : { background: '#EAF1FF', color: '#1E40AF' }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: isStop ? '#E5484D' : '#2F6BFF' }} />
+                {isStop ? 'Arrêt' : focus.kind === 'Circulation' ? 'Circulation' : 'Position'}
+              </span>
+              <span className="text-[11px] font-semibold text-[#8A94A6]">
+                {focus.kind === 'Circulation' ? 'fin du segment' : ''}
+              </span>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <TipRow icon={<CalendarClock className="w-3.5 h-3.5" />} label="Date / heure" value={when} />
+              <TipRow
+                icon={<Gauge className="w-3.5 h-3.5" />}
+                label={focus.kind === 'Circulation' ? 'Vitesse moyenne' : 'Vitesse'}
+                value={`${focus.speed} km/h`}
+              />
+              {focus.durationMin != null && (
+                <TipRow
+                  icon={<Timer className="w-3.5 h-3.5" />}
+                  label={isStop ? 'Durée d’arrêt' : 'Durée de conduite'}
+                  value={`${h ? `${h} h ` : ''}${String(m).padStart(h ? 2 : 1, '0')} min`}
+                />
+              )}
+            </div>
+            {focus.place && (
+              <div className="mt-2 pt-2 border-t border-[#EEF1F7] flex items-start gap-1.5 text-[11.5px] text-[#5B6B8C] whitespace-normal leading-snug">
+                <MapPin className="w-3.5 h-3.5 mt-px shrink-0 text-[#2F6BFF]" />
+                <span>{focus.place}</span>
+              </div>
+            )}
+          </div>
+        </Tooltip>
+      </Marker>
+    </>
+  );
+}
 import type {
   BasemapType,
   DefaultZoneOverlay,
@@ -60,8 +145,9 @@ import { approxPxDistance } from '../lib/polygon-geometry';
 import { getTunisiaProvince } from '../data/tunisia-provinces';
 
 /** Fly so `latlng` lands in the middle of the map area not covered by the docked card */
-function flyToBesideCard(map: L.Map, latlng: L.LatLngExpression, zoom: number, duration: number) {
-  const inset = cardCoveredWidth(map);
+function flyToBesideCard(map: L.Map, latlng: L.LatLngExpression, zoom: number, duration: number, withCard = true) {
+  // Keep the vehicle clear of the docked card, or of the open left table when there is no card
+  const inset = withCard ? cardCoveredWidth(map) : leftPanelCoveredWidth(map);
   const target = map.project(latlng, zoom).subtract([inset / 2, 0]);
   map.flyTo(map.unproject(target, zoom), zoom, { animate: true, duration });
 }
@@ -173,6 +259,7 @@ function radiusKmFromPointer(
 
 function MapController({
   selectedVehicle,
+  cardShown,
   mapCenter,
   mapCenterZoom,
   onMapCenterChange,
@@ -183,6 +270,8 @@ function MapController({
   onFitBoundsDone,
 }: {
   selectedVehicle: Vehicle | null;
+  /** Docked card visible: keep the vehicle clear of it */
+  cardShown: boolean;
   mapCenter: [number, number] | null;
   mapCenterZoom?: number | null;
   onMapCenterChange: () => void;
@@ -198,7 +287,7 @@ function MapController({
   useEffect(() => {
     if (fitBoundsPoints?.length) {
       map.fitBounds(fitBoundsPoints, {
-        paddingTopLeft: [selectedVehicle ? Math.max(380, cardCoveredWidth(map) + 32) : 380, 48],
+        paddingTopLeft: [selectedVehicle && cardShown ? Math.max(380, cardCoveredWidth(map) + 32) : 380, 48],
         paddingBottomRight: [48, 48],
         animate: true,
         duration: 1.2,
@@ -212,11 +301,10 @@ function MapController({
       return;
     }
     if (mapCenter) {
-      if (selectedVehicle) flyToBesideCard(map, mapCenter, mapCenterZoom ?? 16, 1.5);
-      else map.flyTo(mapCenter, mapCenterZoom ?? 16, { animate: true, duration: 1.5 });
+      flyToBesideCard(map, mapCenter, mapCenterZoom ?? 16, 1.5, !!selectedVehicle && cardShown);
       onMapCenterChange();
     } else if (selectedVehicle && flownToRef.current !== selectedVehicle.id) {
-      flyToBesideCard(map, selectedVehicle.coordinates, 15, 1.5);
+      flyToBesideCard(map, selectedVehicle.coordinates, 15, 1.5, cardShown);
     }
     flownToRef.current = selectedVehicle?.id ?? null;
   }, [
@@ -876,13 +964,18 @@ interface MapViewProps {
   }) => void;
   selectedOverlayId?: string | null;
   geofenceDraftInteractive?: boolean;
-  legendHidden?: boolean;
   /** Whole fleet (unfiltered) — used to share alert state with the Alerts module */
   fleetVehicles?: Vehicle[];
   /** Cross-module actions offered by the vehicle card */
   vehicleCardActions?: VehicleCardActions;
+  /** Show the docked vehicle card (only after a click on a vehicle icon on the map) */
+  showVehicleCard?: boolean;
   /** Animated replay of a trip (vehicle drives along the real road) */
   tripReplay?: TripReplayRequest | null;
+  /** Stop / segment / chart point selected in the trajectory table */
+  trajectoryFocus?: TrajectoryFocus | null;
+  /** Every trajectory displayed in the trajectory view (one colour per vehicle) */
+  trajectoryLayers?: TrajectoryLayer[];
   onCloseTripReplay?: () => void;
 }
 
@@ -930,11 +1023,13 @@ export function MapView({
   onOverlaySelect,
   selectedOverlayId = null,
   geofenceDraftInteractive = true,
-  legendHidden = false,
   fleetVehicles,
   vehicleCardActions,
+  showVehicleCard = true,
   tripReplay = null,
   onCloseTripReplay = () => {},
+  trajectoryFocus = null,
+  trajectoryLayers = [],
 }: MapViewProps) {
   // While a trip is replayed, its vehicle is drawn by the replay layer instead
   const shownVehicles = tripReplay
@@ -961,7 +1056,7 @@ export function MapView({
       if (dragged) return;
       if (
         target.closest(
-          '.leaflet-vehicle-info-popup, .custom-marker, .trip-replay-panel, [data-vehicle-row]'
+          '.leaflet-vehicle-info-popup, .custom-marker, .trip-replay-panel, .fiq-popover, [data-vehicle-row], [data-left-panel]'
         )
       ) {
         return;
@@ -1025,6 +1120,7 @@ export function MapView({
 
         <MapController
           selectedVehicle={selectedVehicle}
+          cardShown={showVehicleCard}
           mapCenter={mapCenter}
           mapCenterZoom={mapCenterZoom}
           onMapCenterChange={onMapCenterChange}
@@ -1406,11 +1502,29 @@ export function MapView({
             />
           )}
 
+        {trajectoryLayers
+          .filter((l) => l.vehicleId !== tripReplay?.vehicle.id)
+          .map((l) => (
+            <Fragment key={`traj-layer-${l.vehicleId}`}>
+              <Polyline positions={l.path} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9, interactive: false }} />
+              <Polyline positions={l.path} pathOptions={{ color: l.color, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }}>
+                <Tooltip sticky direction="top" opacity={1} className="fiq-traj-tooltip">
+                  <span className="fiq-font inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0F1B3D]">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
+                    {l.label}
+                  </span>
+                </Tooltip>
+              </Polyline>
+            </Fragment>
+          ))}
+
+        {trajectoryFocus && <TrajectoryFocusLayer focus={trajectoryFocus} />}
+
         {tripReplay && (
           <TripReplayLayer key={tripReplay.key} replay={tripReplay} onClose={onCloseTripReplay} />
         )}
 
-        {selectedVehicle && (
+        {selectedVehicle && showVehicleCard && (
           <SelectedVehiclePopupOverlay
             vehicle={selectedVehicle}
             onClose={() => onDeselectVehicle?.()}
@@ -1418,17 +1532,6 @@ export function MapView({
           />
         )}
       </MapContainer>
-
-      <div
-        className={`absolute bottom-4 left-4 z-10 flex flex-col gap-2 items-start ${
-          legendHidden ? 'hidden sm:flex' : ''
-        }`}
-      >
-        <MapLegend />
-        <div className="bg-white/95 backdrop-blur-sm px-3 py-1 rounded-full shadow-md text-xs font-medium text-slate-600">
-          Véhicules: {vehicles.length}
-        </div>
-      </div>
     </div>
   );
 }

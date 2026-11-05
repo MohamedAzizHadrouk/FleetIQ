@@ -103,6 +103,7 @@ const trajectoryColumns: ColumnDef[] = [
   { id: 'Speed', label: 'Vitesse', defaultVisible: true },
   { id: 'Distance', label: 'Distance', defaultVisible: true },
   { id: 'Place', label: 'Emplacement', defaultVisible: true },
+  { id: 'DashboardIcons', label: 'Tableau de bord', defaultVisible: true },
   { id: 'AlertIcon', label: 'Alerte', defaultVisible: false },
   { id: 'OtherInfo', label: 'Info', defaultVisible: false },
   { id: 'Fuel', label: 'Carburant', defaultVisible: false },

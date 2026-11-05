@@ -22,3 +22,11 @@ export function cardCoveredWidth(map: L.Map): number {
   const covered = cardDockLeft(map) + VEHICLE_CARD_W + 16;
   return width - covered > 240 ? covered : 0;
 }
+
+/** Map pixels covered on the left by the open left panel (vehicle list, forms). */
+export function leftPanelCoveredWidth(map: L.Map): number {
+  const bounds = map.getContainer().getBoundingClientRect();
+  const panel = document.querySelector('[data-left-panel]')?.getBoundingClientRect();
+  const covered = panel && panel.width > 0 ? panel.right - bounds.left + 16 : 0;
+  return bounds.width - covered > 240 ? Math.max(0, covered) : 0;
+}

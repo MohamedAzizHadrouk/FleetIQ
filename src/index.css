@@ -73,6 +73,11 @@
   }
 }
 
+/* Hide the scrollbar but keep wheel / touch scrolling */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
@@ -118,4 +123,18 @@
 .leaflet-marker-icon.trip-replay-vehicle {
   background: transparent;
   border: none;
+}
+
+/* Trajectory map tooltip — FleetIQ design system */
+.leaflet-tooltip.fiq-traj-tooltip {
+  background: #fff;
+  border: 1px solid #E3E9F4;
+  border-radius: 16px;
+  padding: 12px 12px 10px;
+  box-shadow: 0 14px 32px rgba(15, 27, 61, 0.18);
+  white-space: normal;
+}
+.leaflet-tooltip-top.fiq-traj-tooltip::before {
+  border-top-color: #fff;
+  filter: drop-shadow(0 1px 0 #E3E9F4);
 }

@@ -1,15 +1,17 @@
-import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from 'react';
+import { useMemo, useState, type ComponentType, type ReactNode } from 'react';
 import {
   AlertTriangle,
   CalendarClock,
+  Check,
+  Copy,
   FileText,
   Fuel,
   Gauge,
   MapPin,
   Pencil,
   Phone,
-  Route,
   ShieldAlert,
+  SlidersHorizontal,
   Thermometer,
   Wrench,
   X,
@@ -28,15 +30,21 @@ import {
 } from '@/features/fleetiq/vehicle-sprite';
 import {
   CARD_ALERT_GROUP_LABEL,
-  formatDuration,
   getDemoMaintenance,
-  getDemoTrips,
   getVehicleCardAlerts,
   type CardAlert,
   type CardAlertGroup,
   type DemoTrip,
-  type TripRange,
 } from '@/features/fleetiq/vehicle-card-data';
+import {
+  DASH_BY_ID,
+  DASH_GROUPS,
+  DASH_INDICATORS,
+  DASH_TONE_COLOR,
+  DashIcon,
+  getActiveDashIndicators,
+} from '@/features/fleetiq/dashboard-icons';
+import { FIELD_BY_ID, FIELD_SECTIONS, VEHICLE_FIELDS, useVehicleFieldConfig } from '@/features/fleetiq/vehicle-fields';
 
 /** Links from the map card to the other modules of the platform. */
 export interface VehicleCardActions {
@@ -70,7 +78,7 @@ interface VehicleMapInfoCardProps {
   actions?: VehicleCardActions;
 }
 
-type TabId = 'apercu' | 'trajets' | 'maintenance' | 'alertes';
+type TabId = 'apercu' | 'details' | 'maintenance' | 'alertes';
 
 const STATUS_CHIP: Record<FleetiqMarkerStatus, { bg: string; fg: string }> = {
   moving: { bg: '#DCFCE7', fg: '#166534' },
@@ -87,6 +95,8 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
   const vehicle = useMemo(() => withVehiclePopupDemo(rawVehicle), [rawVehicle]);
   const [tab, setTab] = useState<TabId>('apercu');
   const [alertFilter, setAlertFilter] = useState<'all' | CardAlertGroup>('all');
+  const [configOpen, setConfigOpen] = useState(false);
+  const fieldConfig = useVehicleFieldConfig();
   const alerts = useMemo(() => getVehicleCardAlerts(vehicle.id), [vehicle.id]);
   const hasCritical = alerts.some((a) => a.critical);
   const status = toFleetiqStatus(vehicle.status, hasCritical);
@@ -96,7 +106,7 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
 
   const tabs: { id: TabId; label: string; grow?: number }[] = [
     { id: 'apercu', label: 'Aperçu' },
-    { id: 'trajets', label: 'Trajets' },
+    { id: 'details', label: 'Détails' },
     { id: 'maintenance', label: 'Maintenance', grow: 1.3 },
     { id: 'alertes', label: 'Alertes' },
   ];
@@ -105,7 +115,7 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
     <div
       role="dialog"
       aria-label={`Véhicule ${title}`}
-      className="fiq-font w-[408px] max-w-[calc(100vw-1rem)] h-[min(650px,calc(100vh-2rem))] flex flex-col overflow-hidden rounded-[24px] bg-white text-[#0F1B3D] shadow-[0_24px_48px_rgba(15,27,61,0.18)]"
+      className="fiq-font w-[408px] max-w-[calc(100vw-1rem)] max-h-[min(650px,calc(100vh-2rem))] flex flex-col overflow-hidden rounded-[24px] bg-white text-[#0F1B3D] shadow-[0_24px_48px_rgba(15,27,61,0.18)]"
       onClick={(e) => e.stopPropagation()}
       onDoubleClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
@@ -133,6 +143,13 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
           </div>
         </div>
         <div className="flex gap-1.5 self-start shrink-0">
+          <IconButton
+            label="Personnaliser les informations affichées"
+            active={configOpen}
+            onClick={() => setConfigOpen((o) => !o)}
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+          </IconButton>
           {actions.onEditVehicle && (
             <IconButton label="Modifier le type et la photo" onClick={() => actions.onEditVehicle?.(vehicle)}>
               <Pencil className="w-4 h-4" />
@@ -147,7 +164,7 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
       {/* Tabs */}
       <div role="tablist" aria-label="Sections du véhicule" className="flex gap-1 mx-[18px] p-1 rounded-[14px] bg-[#F0F3F9] shrink-0">
         {tabs.map((t) => {
-          const active = tab === t.id;
+          const active = tab === t.id && !configOpen;
           return (
             <button
               key={t.id}
@@ -156,6 +173,7 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
               aria-selected={active}
               onClick={() => {
                 if (t.id === 'alertes') setAlertFilter('all');
+                setConfigOpen(false);
                 setTab(t.id);
               }}
               style={{ flex: t.grow ?? 1 }}
@@ -174,17 +192,20 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
         })}
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto">
-        {tab === 'apercu' && (
-          <OverviewTab vehicle={vehicle} alerts={alerts} actions={actions} onShowAlerts={(group) => {
+      <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
+        {configOpen && <FieldConfigPanel config={fieldConfig} onDone={() => setConfigOpen(false)} />}
+        {!configOpen && tab === 'apercu' && (
+          <OverviewTab vehicle={vehicle} alerts={alerts} actions={actions} config={fieldConfig} onShowAlerts={(group) => {
               setAlertFilter(group ?? 'all');
               setTab('alertes');
             }}
           />
         )}
-        {tab === 'trajets' && <TripsTab vehicle={vehicle} actions={actions} />}
-        {tab === 'maintenance' && <MaintenanceTab vehicle={vehicle} actions={actions} />}
-        {tab === 'alertes' && (
+        {!configOpen && tab === 'details' && (
+          <DetailsTab vehicle={vehicle} alerts={alerts} config={fieldConfig} actions={actions} onConfigure={() => setConfigOpen(true)} />
+        )}
+        {!configOpen && tab === 'maintenance' && <MaintenanceTab vehicle={vehicle} actions={actions} />}
+        {!configOpen && tab === 'alertes' && (
           <AlertsTab key={alertFilter} vehicle={vehicle} alerts={alerts} actions={actions} initialFilter={alertFilter} />
         )}
       </div>
@@ -194,14 +215,27 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
 
 /* ───────────────────────── shared bits ───────────────────────── */
 
-function IconButton({ label, onClick, children }: { label: string; onClick?: () => void; children: ReactNode }) {
+function IconButton({
+  label,
+  onClick,
+  active,
+  children,
+}: {
+  label: string;
+  onClick?: () => void;
+  active?: boolean;
+  children: ReactNode;
+}) {
   return (
     <button
       type="button"
       aria-label={label}
       title={label}
+      aria-pressed={active}
       onClick={onClick}
-      className="w-9 h-9 rounded-xl bg-[#F0F3F9] text-[#0F1B3D] inline-flex items-center justify-center hover:bg-[#E3E9F4] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2F6BFF]"
+      className={`w-9 h-9 rounded-xl inline-flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2F6BFF] ${
+        active ? 'bg-[#2F6BFF] text-white' : 'bg-[#F0F3F9] text-[#0F1B3D] hover:bg-[#E3E9F4]'
+      }`}
     >
       {children}
     </button>
@@ -216,7 +250,7 @@ function Cta({
   secondary: { label: string; onClick?: () => void };
 }) {
   return (
-    <div className="grid grid-cols-[1.5fr_1fr] gap-2.5 px-[18px] pt-3.5 pb-[18px]">
+    <div className="sticky bottom-0 z-10 mt-2 grid grid-cols-[1.5fr_1fr] gap-2.5 px-[18px] pt-3 pb-[18px] bg-white">
       <button
         type="button"
         onClick={primary.onClick}
@@ -266,70 +300,101 @@ function OverviewTab({
   vehicle,
   alerts,
   actions,
+  config,
   onShowAlerts,
 }: {
   vehicle: Vehicle;
   alerts: CardAlert[];
   actions: VehicleCardActions;
+  config: FieldConfig;
   onShowAlerts: (group?: CardAlertGroup) => void;
 }) {
-  const [lat, lng] = vehicle.coordinates;
+  const show = config.isVisible;
   const fuel = vehicle.fuelLevel ?? 0;
   const fuelColor = fuel < 20 ? FIQ.alert : fuel < 40 ? FIQ.stopped : FIQ.moving;
-  const updated = vehicle.timestamp
-    ? new Date(vehicle.timestamp).toLocaleString('fr-FR', { timeZone: 'Africa/Tunis' }).replace(' ', ' · ')
-    : vehicle.lastUpdate;
+  const val = (id: string) => FIELD_BY_ID[id].value(vehicle);
+
+  const stats = [
+    show('vitesse') && { id: 'vitesse', icon: <Gauge className="w-[19px] h-[19px] text-[#2F6BFF]" />, value: fmt(vehicle.speed), unit: 'km/h', label: 'Vitesse' },
+    show('niveauCarburant') && {
+      id: 'carburant',
+      icon: <Fuel className="w-[19px] h-[19px]" style={{ color: fuelColor }} />,
+      value: fmt(fuel),
+      unit: '%',
+      label: 'Carburant',
+      bar: { pct: fuel, color: fuelColor },
+    },
+    show('tempMoteur') && {
+      id: 'temp',
+      icon: <Thermometer className="w-[19px] h-[19px] text-[#F59E0B]" />,
+      value: fmt(vehicle.engineTemperature),
+      unit: '°C',
+      label: 'Temp. moteur',
+    },
+  ].filter(Boolean) as { id: string; icon: ReactNode; value: string; unit: string; label: string; bar?: { pct: number; color: string } }[];
+
+  const rows: { id: string; icon: ReactNode; title: string; sub: string }[] = [];
+  if (show('adresse') || show('gps')) {
+    rows.push({
+      id: 'pos',
+      icon: <MapPin className="w-4 h-4 text-[#2F6BFF]" />,
+      title: show('adresse') ? val('adresse') : val('gps'),
+      sub: show('adresse') && show('gps') ? val('gps') : 'Position',
+    });
+  }
+  if (show('dateHeure') || show('horodatage')) {
+    rows.push({
+      id: 'time',
+      icon: <CalendarClock className="w-4 h-4 text-[#2F6BFF]" />,
+      title: show('dateHeure') ? val('dateHeure') : val('horodatage'),
+      sub: show('dateHeure') && show('horodatage') ? `Dernière mise à jour ${val('horodatage')}` : 'Date / heure',
+    });
+  }
+  const driverSub = [show('carte') && val('carte'), show('tempsConduite') && vehicle.drivingTime && `${vehicle.drivingTime} de conduite`]
+    .filter(Boolean)
+    .join(' · ');
 
   return (
     <>
       {/* Stats */}
-      <div className="grid grid-cols-3 mx-[18px] mt-3.5 rounded-[18px] border border-[#E3E9F4]">
-        <Stat icon={<Gauge className="w-[19px] h-[19px] text-[#2F6BFF]" />} value={fmt(vehicle.speed)} unit="km/h" label="Vitesse" />
-        <Stat
-          icon={<Fuel className="w-[19px] h-[19px]" style={{ color: fuelColor }} />}
-          value={fmt(fuel)}
-          unit="%"
-          label="Carburant"
-          bar={{ pct: fuel, color: fuelColor }}
-          bordered
-        />
-        <Stat
-          icon={<Thermometer className="w-[19px] h-[19px] text-[#F59E0B]" />}
-          value={fmt(vehicle.engineTemperature)}
-          unit="°C"
-          label="Temp. moteur"
-          bordered
-        />
-      </div>
+      {stats.length > 0 && (
+        <div className="grid mx-[18px] mt-3.5 rounded-[18px] border border-[#E3E9F4]" style={{ gridTemplateColumns: `repeat(${stats.length}, minmax(0, 1fr))` }}>
+          {stats.map((s, i) => (
+            <Stat key={s.id} icon={s.icon} value={s.value} unit={s.unit} label={s.label} bar={s.bar} bordered={i > 0} />
+          ))}
+        </div>
+      )}
 
       {/* Timeline */}
-      <div className="flex flex-col px-[18px] pt-4 pb-0.5">
-        <TimelineRow icon={<MapPin className="w-4 h-4 text-[#2F6BFF]" />} title={vehicle.location || '—'} sub={`${lat.toFixed(4)}, ${lng.toFixed(4)}`} line />
-        <TimelineRow icon={<CalendarClock className="w-4 h-4 text-[#2F6BFF]" />} title={updated || '—'} sub={`Dernière mise à jour ${vehicle.lastUpdate || ''}`.trim()} line />
-        <div className="flex gap-3 items-start">
-          <div className="w-8 h-8 rounded-full bg-[#0F1B3D] text-white text-[11.5px] font-extrabold flex items-center justify-center shrink-0">
-            {initials(vehicle.driver)}
-          </div>
-          <div className="flex flex-col gap-px flex-1 min-w-0 pb-2.5">
-            <span className="text-[14.5px] font-bold truncate">{vehicle.driver || 'Non affecté'}</span>
-            <span className="text-[12.5px] text-[#5B6B8C] truncate">
-              {vehicle.driverId || '—'}
-              {vehicle.drivingTime ? ` · ${vehicle.drivingTime} de conduite` : ''}
-            </span>
-          </div>
-          {actions.onOpenDriver && (
-            <button
-              type="button"
-              aria-label="Fiche chauffeur"
-              title="Fiche chauffeur"
-              onClick={() => actions.onOpenDriver?.(vehicle)}
-              className="w-[34px] h-[34px] rounded-[11px] border border-[#DCE3EF] bg-white text-[#0F1B3D] flex items-center justify-center shrink-0 hover:bg-[#F7F9FF]"
-            >
-              <Phone className="w-4 h-4" />
-            </button>
+      {(rows.length > 0 || show('chauffeur')) && (
+        <div className="flex flex-col px-[18px] pt-4 pb-0.5">
+          {rows.map((r, i) => (
+            <TimelineRow key={r.id} icon={r.icon} title={r.title} sub={r.sub} line={i < rows.length - 1 || show('chauffeur')} />
+          ))}
+          {show('chauffeur') && (
+            <div className="flex gap-3 items-start">
+              <div className="w-8 h-8 rounded-full bg-[#0F1B3D] text-white text-[11.5px] font-extrabold flex items-center justify-center shrink-0">
+                {initials(vehicle.driver)}
+              </div>
+              <div className="flex flex-col gap-px flex-1 min-w-0 pb-2.5">
+                <span className="text-[14.5px] font-bold truncate">{vehicle.driver || 'Non affecté'}</span>
+                <span className="text-[12.5px] text-[#5B6B8C] truncate">{driverSub || 'Chauffeur'}</span>
+              </div>
+              {actions.onOpenDriver && (
+                <button
+                  type="button"
+                  aria-label="Fiche chauffeur"
+                  title="Fiche chauffeur"
+                  onClick={() => actions.onOpenDriver?.(vehicle)}
+                  className="w-[34px] h-[34px] rounded-[11px] border border-[#DCE3EF] bg-white text-[#0F1B3D] flex items-center justify-center shrink-0 hover:bg-[#F7F9FF]"
+                >
+                  <Phone className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           )}
         </div>
-      </div>
+      )}
 
       {/* Alert icons: documents · maintenance · moteur · chute carburant */}
       {alerts.length > 0 && <AlertIconRow alerts={alerts} onOpen={onShowAlerts} />}
@@ -483,108 +548,314 @@ function AlertIconRow({ alerts, onOpen }: { alerts: CardAlert[]; onOpen: (group?
     </div>
   );
 }
-/* ───────────────────────── Trajets ───────────────────────── */
+/* ───────────────────────── Détails ───────────────────────── */
 
-const RANGES: { id: TripRange; label: string }[] = [
-  { id: 'today', label: 'Aujourd’hui' },
-  { id: 'yesterday', label: 'Hier' },
-  { id: 'week', label: '7 jours' },
-];
+type FieldConfig = ReturnType<typeof useVehicleFieldConfig>;
 
-function TripsTab({ vehicle, actions }: { vehicle: Vehicle; actions: VehicleCardActions }) {
-  const [range, setRange] = useState<TripRange>('today');
-  const trips = useMemo(() => getDemoTrips(vehicle, range), [vehicle, range]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const selected = trips.find((t) => t.id === selectedId) ?? trips[trips.length - 1];
-  const totalKm = trips.reduce((s, t) => s + t.km, 0);
-  const totalMin = trips.reduce((s, t) => s + t.durationMin, 0);
+function CopyButton({ value }: { value: string }) {
+  const [done, setDone] = useState(false);
+  if (value === '—') return null;
+  return (
+    <button
+      type="button"
+      title="Copier"
+      aria-label="Copier"
+      onClick={() => {
+        void navigator.clipboard?.writeText(value).then(() => {
+          setDone(true);
+          window.setTimeout(() => setDone(false), 1200);
+        });
+      }}
+      className="w-7 h-7 rounded-lg text-[#8A94A6] hover:text-[#2F6BFF] hover:bg-[#EAF1FF] inline-flex items-center justify-center shrink-0"
+    >
+      {done ? <Check className="w-3.5 h-3.5 text-[#16A34A]" /> : <Copy className="w-3.5 h-3.5" />}
+    </button>
+  );
+}
 
-  // Show the selected trip on the map when the tab opens or the period changes
-  const { onShowTrip } = actions;
-  const defaultTrip = trips[trips.length - 1];
-  useEffect(() => {
-    if (defaultTrip) onShowTrip?.(vehicle, defaultTrip);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [range, vehicle.id]);
+function DetailsTab({
+  vehicle,
+  alerts,
+  config,
+  actions,
+  onConfigure,
+}: {
+  vehicle: Vehicle;
+  alerts: CardAlert[];
+  config: FieldConfig;
+  actions: VehicleCardActions;
+  onConfigure: () => void;
+}) {
+  const sections = FIELD_SECTIONS.map((s) => ({
+    ...s,
+    fields: VEHICLE_FIELDS.filter((f) => f.section === s.id && config.isVisible(f.id)),
+  })).filter((s) => s.fields.length > 0);
 
   return (
     <>
-      <div className="flex gap-2 px-[18px] pt-3.5" role="group" aria-label="Période">
-        {RANGES.map((r) => (
-          <button
-            key={r.id}
-            type="button"
-            aria-pressed={range === r.id}
-            onClick={() => {
-              setRange(r.id);
-              setSelectedId(null);
-            }}
-            className={`h-8 px-3.5 rounded-full text-[13px] transition-colors ${
-              range === r.id ? 'bg-[#0F1B3D] text-white font-bold' : 'border border-[#DCE3EF] bg-white text-[#5B6B8C] font-semibold hover:text-[#0F1B3D]'
-            }`}
-          >
-            {r.label}
+      <div className="px-[18px] pt-3.5">
+        <DashboardPanel vehicle={vehicle} alerts={alerts} config={config} />
+      </div>
+      {sections.length === 0 ? (
+        <div className="mx-[18px] mt-4 px-4 py-6 rounded-[18px] border border-dashed border-[#DCE3EF] text-center">
+          <p className="text-sm font-bold">Aucune information affichée</p>
+          <p className="text-[12.5px] text-[#5B6B8C] mt-1">Choisissez les informations à afficher sur la fiche.</p>
+          <button type="button" onClick={onConfigure} className="mt-3 h-8 px-3 rounded-[10px] bg-[#EAF1FF] text-[#2F6BFF] text-[13px] font-bold">
+            Personnaliser
           </button>
-        ))}
-      </div>
-
-      <div className="grid grid-cols-3 mx-[18px] mt-3.5 rounded-[18px] border border-[#E3E9F4]">
-        <SummaryCell value={<>{fmt(totalKm)} <span className="text-xs text-[#5B6B8C] font-semibold">km</span></>} label="Distance" />
-        <SummaryCell value={formatDuration(totalMin)} label="Conduite" bordered />
-        <SummaryCell value={String(trips.length)} label="Trajets" bordered />
-      </div>
-
-      <ul className="flex flex-col gap-2.5 px-[18px] pt-3.5">
-        {trips.map((t) => {
-          const active = t.id === selected?.id;
-          return (
-            <li key={t.id}>
-              <button
-                type="button"
-                aria-pressed={active}
-                onClick={() => {
-                  setSelectedId(t.id);
-                  actions.onShowTrip?.(vehicle, t);
-                }}
-                className={`w-full flex items-center gap-3 px-3.5 py-3 rounded-2xl text-left transition-colors ${
-                  active ? 'border-[1.5px] border-[#2F6BFF] bg-[#F5F8FF]' : 'border border-[#E3E9F4] hover:bg-[#F7F9FF]'
-                }`}
-              >
-                <Route className={`w-5 h-5 shrink-0 ${active ? 'text-[#2F6BFF]' : 'text-[#5B6B8C]'}`} />
-                <span className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-sm font-bold truncate">
-                    {t.from} → {t.to}
-                  </span>
-                  <span className="text-[12.5px] text-[#5B6B8C]">
-                    {t.day ? `${t.day} · ` : ''}
-                    {t.start} → {t.end} · {t.duration}
-                  </span>
-                </span>
-                <span className="text-sm font-extrabold">{t.km} km</span>
-              </button>
-            </li>
-          );
-        })}
-      </ul>
-
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3 px-[18px] pt-3.5">
+          {sections.map((s) => (
+            <section key={s.id} aria-label={s.label} className="rounded-2xl border border-[#E3E9F4] overflow-hidden">
+              <h4 className="px-3.5 py-2 bg-[#F7F9FF] border-b border-[#E3E9F4] text-[11.5px] font-extrabold text-[#5B6B8C] tracking-[0.04em] uppercase">
+                {s.label}
+              </h4>
+              <dl className="divide-y divide-[#EEF1F7]">
+                {s.fields.map((f) => {
+                  const Icon = f.icon;
+                  const value = f.value(vehicle);
+                  return (
+                    <div key={f.id} className="flex items-center gap-2.5 pl-3.5 pr-2 py-2.5 min-h-[44px]">
+                      <Icon className="w-4 h-4 text-[#2F6BFF] shrink-0" />
+                      <dt className="text-[12.5px] text-[#5B6B8C] shrink-0">{f.label}</dt>
+                      <dd
+                        className={`flex-1 min-w-0 text-right text-[13px] font-bold break-words ${value === '—' ? 'text-[#B8C3DA]' : ''} ${
+                          f.copy ? 'tabular-nums' : ''
+                        }`}
+                      >
+                        {value}
+                      </dd>
+                      {f.copy ? <CopyButton value={value} /> : <span className="w-1.5 shrink-0" />}
+                    </div>
+                  );
+                })}
+              </dl>
+            </section>
+          ))}
+        </div>
+      )}
       <Cta
-        primary={{
-          label: 'Rejouer sur la carte',
-          onClick: selected && actions.onReplayTrip ? () => actions.onReplayTrip?.(vehicle, selected) : undefined,
-        }}
-        secondary={{ label: 'Exporter', onClick: actions.onOpenReport && (() => actions.onOpenReport?.(vehicle)) }}
+        primary={{ label: 'Rapport détaillé', onClick: actions.onOpenReport && (() => actions.onOpenReport?.(vehicle)) }}
+        secondary={{ label: 'Personnaliser', onClick: onConfigure }}
       />
-      <p className="text-[11.5px] text-[#8A94A6] text-center -mt-1 pb-3">Itinéraires réels · horaires de démonstration</p>
     </>
   );
 }
 
-function SummaryCell({ value, label, bordered }: { value: ReactNode; label: string; bordered?: boolean }) {
+/* ───────────────────────── Tableau de bord ───────────────────────── */
+
+const dashKey = (id: string) => `dash:${id}`;
+
+function DashboardPanel({ vehicle, alerts, config }: { vehicle: Vehicle; alerts: CardAlert[]; config: FieldConfig }) {
+  const active = useMemo(() => getActiveDashIndicators(vehicle, alerts.map((a) => a.raw)), [vehicle, alerts]);
+  const [onlyActive, setOnlyActive] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const shown = DASH_INDICATORS.filter((d) => config.isVisible(dashKey(d.id)));
+  if (shown.length === 0) return null;
+  const list = onlyActive ? shown.filter((d) => active.has(d.id)) : shown;
+  const activeCount = shown.filter((d) => active.has(d.id)).length;
+  const selected = selectedId ? DASH_BY_ID[selectedId] : null;
+  const selectedOn = selected ? active.has(selected.id) : false;
+
   return (
-    <div className={`flex flex-col gap-0.5 px-3.5 py-3 min-w-0 ${bordered ? 'border-l border-[#E3E9F4]' : ''}`}>
-      <span className="text-[22px] font-extrabold truncate">{value}</span>
-      <span className="text-xs text-[#5B6B8C]">{label}</span>
-    </div>
+    <section aria-label="Tableau de bord" className="rounded-2xl border border-[#E3E9F4] overflow-hidden">
+      <div className="flex items-center gap-2 px-3.5 py-2 bg-[#F7F9FF] border-b border-[#E3E9F4]">
+        <h4 className="flex-1 text-[11.5px] font-extrabold text-[#5B6B8C] tracking-[0.04em] uppercase">
+          Tableau de bord{' '}
+          <span className="normal-case tracking-normal font-semibold">
+            · {activeCount} actif{activeCount > 1 ? 's' : ''}
+          </span>
+        </h4>
+        <div className="flex gap-0.5 p-0.5 rounded-lg bg-white border border-[#E3E9F4]" role="group" aria-label="Filtrer les indicateurs">
+          {[
+            { v: false, l: 'Tous' },
+            { v: true, l: 'Actifs' },
+          ].map((o) => (
+            <button
+              key={o.l}
+              type="button"
+              aria-pressed={onlyActive === o.v}
+              onClick={() => setOnlyActive(o.v)}
+              className={`h-6 px-2 rounded-md text-[11.5px] ${
+                onlyActive === o.v ? 'bg-[#0F1B3D] text-white font-bold' : 'text-[#5B6B8C] font-semibold'
+              }`}
+            >
+              {o.l}
+            </button>
+          ))}
+        </div>
+      </div>
+      {list.length === 0 ? (
+        <p className="px-3.5 py-4 text-[12.5px] text-[#8A94A6] text-center">Aucun indicateur actif.</p>
+      ) : (
+        <div className="grid grid-cols-7 gap-1 p-2">
+          {list.map((d) => {
+            const on = active.has(d.id);
+            const isSel = selectedId === d.id;
+            return (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setSelectedId(isSel ? null : d.id)}
+                title={`${d.label} — ${on ? 'Actif' : 'Inactif'}`}
+                aria-label={`${d.label}, ${on ? 'actif' : 'inactif'}`}
+                aria-pressed={isSel}
+                className={`h-11 rounded-xl flex items-center justify-center transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#2F6BFF] ${
+                  isSel ? 'bg-[#EAF1FF] ring-1 ring-[#BFD3FF]' : 'hover:bg-[#F7F9FF]'
+                }`}
+              >
+                <DashIcon indicator={d} active={on} size={26} />
+              </button>
+            );
+          })}
+        </div>
+      )}
+      {selected && (
+        <div className="flex items-start gap-3 mx-2 mb-2 px-3 py-2.5 rounded-xl bg-[#F7F9FF] border border-[#E3E9F4]">
+          <DashIcon indicator={selected} active={selectedOn} size={28} className="shrink-0 mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-[13px] font-bold">
+              {selected.label}
+              <span
+                className="ml-1.5 inline-flex px-1.5 py-px rounded-full text-[10.5px] font-extrabold align-middle"
+                style={
+                  selectedOn
+                    ? { background: `${DASH_TONE_COLOR[selected.tone]}1F`, color: DASH_TONE_COLOR[selected.tone] }
+                    : { background: '#EEF1F7', color: '#5B6B8C' }
+                }
+              >
+                {selectedOn ? 'Actif' : 'Inactif'}
+              </span>
+            </p>
+            <p className="text-[12px] text-[#5B6B8C] mt-0.5">{selected.meaning}</p>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DashboardConfigSection({ config }: { config: FieldConfig }) {
+  const keys = DASH_INDICATORS.map((d) => dashKey(d.id));
+  const shown = keys.filter((k) => config.isVisible(k)).length;
+  const all = shown === keys.length;
+  return (
+    <section className="rounded-2xl border border-[#E3E9F4] overflow-hidden">
+      <div className="flex items-center gap-2 px-3.5 py-2 bg-[#F7F9FF] border-b border-[#E3E9F4]">
+        <span className="flex-1 text-[11.5px] font-extrabold text-[#5B6B8C] tracking-[0.04em] uppercase">
+          Tableau de bord <span className="font-semibold normal-case tracking-normal">· {shown}/{keys.length}</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => config.setMany(keys, !all)}
+          className="text-[12px] font-bold text-[#2F6BFF] hover:underline"
+        >
+          {all ? 'Tout masquer' : 'Tout afficher'}
+        </button>
+      </div>
+      <div className="p-2 flex flex-col gap-2">
+        {DASH_GROUPS.map((g) => (
+          <div key={g.id}>
+            <p className="px-1.5 pb-1 text-[11px] font-bold text-[#8A94A6]">{g.label}</p>
+            <div className="grid grid-cols-2 gap-1">
+              {DASH_INDICATORS.filter((d) => d.group === g.id).map((d) => {
+                const on = config.isVisible(dashKey(d.id));
+                return (
+                  <button
+                    key={d.id}
+                    type="button"
+                    role="switch"
+                    aria-checked={on}
+                    onClick={() => config.toggle(dashKey(d.id))}
+                    title={d.meaning}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-lg border text-left transition-colors ${
+                      on ? 'border-[#BFD3FF] bg-[#F5F8FF]' : 'border-[#E3E9F4] bg-white opacity-60 hover:opacity-100'
+                    }`}
+                  >
+                    <DashIcon indicator={d} active={on} size={20} className="shrink-0" />
+                    <span className={`text-[11.5px] font-semibold leading-tight ${on ? 'text-[#0F1B3D]' : 'text-[#8A94A6]'}`}>
+                      {d.label}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ─────────────────── Personnaliser la fiche ─────────────────── */
+
+function Switch({ on, label, onChange }: { on: boolean; label: string; onChange: () => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={onChange}
+      className={`relative w-9 h-5 rounded-full shrink-0 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F6BFF] ${
+        on ? 'bg-[#2F6BFF]' : 'bg-[#DCE3EF]'
+      }`}
+    >
+      <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform ${on ? 'translate-x-4' : ''}`} />
+    </button>
+  );
+}
+
+function FieldConfigPanel({ config, onDone }: { config: FieldConfig; onDone: () => void }) {
+  const total = VEHICLE_FIELDS.length;
+  return (
+    <>
+      <div className="px-[18px] pt-3.5">
+        <p className="text-[15px] font-extrabold">Personnaliser la fiche</p>
+        <p className="text-[12.5px] text-[#5B6B8C] mt-0.5">
+          Choisissez les informations affichées dans Aperçu et Détails · {total - config.hiddenCount}/{total} affichées
+        </p>
+      </div>
+      <div className="flex flex-col gap-3 px-[18px] pt-3">
+        {FIELD_SECTIONS.map((s) => {
+          const fields = VEHICLE_FIELDS.filter((f) => f.section === s.id);
+          const shown = fields.filter((f) => config.isVisible(f.id)).length;
+          const all = shown === fields.length;
+          return (
+            <section key={s.id} className="rounded-2xl border border-[#E3E9F4] overflow-hidden">
+              <div className="flex items-center gap-2 px-3.5 py-2 bg-[#F7F9FF] border-b border-[#E3E9F4]">
+                <span className="flex-1 text-[11.5px] font-extrabold text-[#5B6B8C] tracking-[0.04em] uppercase">
+                  {s.label} <span className="font-semibold normal-case tracking-normal">· {shown}/{fields.length}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => config.setSection(s.id, !all)}
+                  className="text-[12px] font-bold text-[#2F6BFF] hover:underline"
+                >
+                  {all ? 'Tout masquer' : 'Tout afficher'}
+                </button>
+              </div>
+              <ul className="divide-y divide-[#EEF1F7]">
+                {fields.map((f) => {
+                  const Icon = f.icon;
+                  const on = config.isVisible(f.id);
+                  return (
+                    <li key={f.id} className="flex items-center gap-2.5 px-3.5 py-2">
+                      <Icon className={`w-4 h-4 shrink-0 ${on ? 'text-[#2F6BFF]' : 'text-[#B8C3DA]'}`} />
+                      <span className={`flex-1 text-[13px] font-semibold ${on ? '' : 'text-[#8A94A6]'}`}>{f.label}</span>
+                      <Switch on={on} label={`Afficher ${f.label}`} onChange={() => config.toggle(f.id)} />
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          );
+        })}
+        <DashboardConfigSection config={config} />
+      </div>
+      <Cta primary={{ label: 'Terminé', onClick: onDone }} secondary={{ label: 'Réinitialiser', onClick: config.reset }} />
+    </>
   );
 }
 

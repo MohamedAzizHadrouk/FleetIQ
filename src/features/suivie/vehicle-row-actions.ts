@@ -1,14 +1,14 @@
 import type { LucideIcon } from 'lucide-react';
 import { roadTrack } from '@/features/fleetiq/road-position';
 import {
-  MapPin,
+  Ban,
+  ClipboardList,
+  Crosshair,
+  Hand,
+  MapPinned,
   Route,
-  StopCircle,
-  FileText,
-  Zap,
-  Navigation,
-  Power,
-  Settings,
+  Truck,
+  Wrench,
 } from 'lucide-react';
 import type { Vehicle } from '@/types';
 
@@ -29,22 +29,14 @@ export interface VehicleRowActionDef {
 }
 
 export const VEHICLE_ROW_ACTIONS: VehicleRowActionDef[] = [
-  { id: 'showOnMap', label: 'Afficher sur la carte', icon: MapPin },
+  { id: 'showOnMap', label: 'Afficher sur la carte', icon: MapPinned },
   { id: 'showTrajectory', label: 'Afficher trajectoire', icon: Route },
-  { id: 'showStopRun', label: 'Afficher Stop/Circulation', icon: StopCircle },
-  {
-    id: 'showDetailedReport',
-    label: 'Afficher le rapport détaillé',
-    icon: FileText,
-  },
-  { id: 'showSpeedExcess', label: 'Afficher les excès de vitesse', icon: Zap },
-  {
-    id: 'requestPosition',
-    label: 'Demande position actuelle',
-    icon: Navigation,
-  },
-  { id: 'remoteStop', label: 'Arrêt à distance (AAD)', icon: Power },
-  { id: 'alertSettings', label: 'Paramétrage des alertes', icon: Settings },
+  { id: 'showStopRun', label: 'Afficher Stop/Circulation', icon: Ban },
+  { id: 'showDetailedReport', label: 'Afficher le rapport détaillé', icon: ClipboardList },
+  { id: 'showSpeedExcess', label: 'Afficher les excès de vitesse', icon: Truck },
+  { id: 'requestPosition', label: 'Demande position actuelle', icon: Crosshair },
+  { id: 'remoteStop', label: 'Arrêt à distance (AAD)', icon: Hand },
+  { id: 'alertSettings', label: 'Paramétrage des alertes', icon: Wrench },
 ];
 
 export function hasAssignedEquipment(vehicle: Vehicle): boolean {
@@ -100,4 +92,28 @@ export function buildMockTrajectoryPath(
     ]);
   }
   return points;
+}
+
+/** Why an action cannot run for this vehicle (null = available). */
+export function vehicleRowActionUnavailableReason(
+  actionId: VehicleRowActionId,
+  vehicle: Vehicle,
+  isAdmin: boolean
+): string | null {
+  if (isVehicleRowActionVisible(actionId, vehicle, isAdmin)) return null;
+  if (actionId === 'alertSettings' || (actionId === 'remoteStop' && !isAdmin)) {
+    return 'Réservé aux administrateurs';
+  }
+  return 'Non supporté par l’équipement';
+}
+
+/** All row actions, always listed, with availability for this vehicle. */
+export function getVehicleRowActions(
+  vehicle: Vehicle,
+  isAdmin: boolean
+): (VehicleRowActionDef & { unavailableReason: string | null })[] {
+  return VEHICLE_ROW_ACTIONS.map((a) => ({
+    ...a,
+    unavailableReason: vehicleRowActionUnavailableReason(a.id, vehicle, isAdmin),
+  }));
 }

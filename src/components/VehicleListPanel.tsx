@@ -12,12 +12,9 @@ import {
   ChevronLeft,
   ChevronRight,
   MoreVertical,
-  Settings,
-  Download,
   ChevronDown,
   Clock,
   Car,
-  Layers,
   AlertTriangle,
   Check,
   RotateCcw,
@@ -25,10 +22,42 @@ import {
   ArrowDown,
   ArrowUpDown,
   X,
+  BookmarkPlus,
+  Route as RouteIcon,
+  Ruler,
+  Activity,
+  Ban,
+  Send,
+  FileText,
+  FileSpreadsheet,
+  Group,
+  Columns3,
+  ChevronsLeft,
+  ChevronsRight,
 } from 'lucide-react';
 import { Vehicle, type VehicleStatus } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
-import { DateTimePicker } from './DateTimePicker';
+import { DateTimeRangePicker } from './DateTimeRangePicker';
+import {
+  DASH_INDICATORS,
+  DashIcon,
+  getTrajectoryDashIndicators,
+} from '@/features/fleetiq/dashboard-icons';
+import { useVehicleFieldConfig } from '@/features/fleetiq/vehicle-fields';
+import {
+  getVehicleTrajectory,
+  TRAJECTORY_COLORS,
+  type TrajSample,
+  type TrajectoryFocus,
+  type TrajectoryLayer,
+  type VehicleTrajectory,
+} from '@/features/fleetiq/trajectory-data';
+import {
+  TrajectoryDetailsRow,
+  TrajectoryGraphRow,
+  TrajectoryGroupHeader,
+  type TrajectoryViewMode,
+} from './TrajectoryGroup';
 import { FleetReminderCell } from './suivie/FleetReminderCell';
 import { RemoteStopDialog } from './suivie/RemoteStopDialog';
 import type { AadCommandMode } from './suivie/RemoteStopDialog';
@@ -43,7 +72,7 @@ import {
 import { DialogBody } from '@/components/ui/dialog-body';
 import {
   buildMockTrajectoryPath,
-  getVisibleVehicleRowActions,
+  getVehicleRowActions,
   hasAssignedEquipment,
   type VehicleRowActionId,
 } from '@/features/suivie/vehicle-row-actions';
@@ -65,8 +94,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import {
-  ACTIONS,
+  SUIVIE_DEPARTMENTS,
   type SuivieAction,
+  type SuivieDepartment,
 } from '@/features/suivie/column-defs';
 import {
   ALERT_TYPES,
@@ -75,6 +105,7 @@ import {
   getFilteredVehicleIds,
   type AppliedSuivieFilters,
   type SuivieRow,
+  type CommandRow,
 } from '@/features/suivie/mock-data';
 import { useColumnPreferences } from '@/features/suivie/useColumnPreferences';
 import {
@@ -95,6 +126,17 @@ interface VehicleListPanelProps {
   isAdmin?: boolean;
   onFocusVehicleOnMap?: (vehicle: Vehicle, zoom?: number) => void;
   onShowTrajectoryTrack?: (path: [number, number][]) => void;
+  /** Trajectory table: highlight a stop / segment / chart point on the map */
+  onTrajectoryFocus?: (focus: TrajectoryFocus | null) => void;
+  /** Trajectory table: animate a vehicle's trajectory on the map */
+  onReplayTrajectory?: (vehicle: Vehicle, traj: VehicleTrajectory) => void;
+  onStopReplay?: () => void;
+  /** Vehicle whose trajectory is currently animated */
+  replayVehicleId?: string | null;
+  /** Trajectory table: save the driven path as a route overlay with the given title */
+  onSaveTrajectoryRoute?: (vehicle: Vehicle, traj: VehicleTrajectory, name: string) => void;
+  /** Trajectory view: every displayed vehicle trajectory to draw on the map */
+  onTrajectoryLayersChange?: (layers: TrajectoryLayer[]) => void;
   onClearTrajectoryTrack?: () => void;
   onOpenDetailedReport?: (vehicleId: string) => void;
   onOpenAlertConfiguration?: (vehicleId: string) => void;
@@ -131,12 +173,13 @@ function GroupByDropZone({
   return (
     <div
       ref={setNodeRef}
-      className={`h-8 min-w-[140px] flex-1 max-w-[280px] flex items-center gap-1.5 rounded-lg border border-dashed px-2 transition-colors ${
+      title="Glissez un en-tête de colonne ici pour grouper le tableau"
+      className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[220px]' : 'w-[104px]'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
         isOver
           ? 'border-blue-500 bg-blue-50'
           : groupByColumnId
             ? 'border-blue-300 bg-blue-50/70'
-            : 'border-slate-200 bg-slate-50'
+            : 'border-[#DCE3EF] bg-[#F7F9FF] hover:border-[#BFD3FF]'
       }`}
     >
       {groupByColumnId ? (
@@ -167,8 +210,9 @@ function GroupByDropZone({
           </button>
         </>
       ) : (
-        <p className="text-[11px] text-slate-400 truncate w-full text-center">
-          Glisser une colonne ici
+        <p className="flex items-center justify-center gap-1 text-[11px] font-medium text-slate-500 truncate w-full">
+          <Group className="w-3.5 h-3.5 shrink-0" />
+          Grouper
         </p>
       )}
     </div>
@@ -267,6 +311,144 @@ function FilterBulkActions({
   );
 }
 
+/** Main views of the tracking panel (Commandes opens only from "Demande position actuelle") */
+const TAB_ACTIONS: { id: SuivieAction; label: string; icon: typeof Activity }[] = [
+  { id: 'suivie_generale', label: 'Suivi général', icon: Activity },
+  { id: 'stop_circulation', label: 'Stop & Circulation', icon: Ban },
+  { id: 'trajectoire', label: 'Trajectoire', icon: RouteIcon },
+  { id: 'alertes', label: 'Alertes', icon: AlertTriangle },
+];
+
+const PAGE_SIZES = [25, 50, 100];
+
+/** Page numbers with ellipsis: 1 … 4 5 6 … 20 */
+function pageWindow(page: number, total: number): (number | '…')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const out: (number | '…')[] = [1];
+  const from = Math.max(2, page - 1);
+  const to = Math.min(total - 1, page + 1);
+  if (from > 2) out.push('…');
+  for (let p = from; p <= to; p++) out.push(p);
+  if (to < total - 1) out.push('…');
+  out.push(total);
+  return out;
+}
+
+function TableFooter({
+  page,
+  pageSize,
+  total,
+  paginated,
+  onPage,
+  onPageSize,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  paginated: boolean;
+  onPage: (p: number) => void;
+  onPageSize: (n: number) => void;
+}) {
+  const pages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(total, page * pageSize);
+  const navBtn =
+    'w-8 h-8 rounded-lg inline-flex items-center justify-center text-[#5B6B8C] hover:bg-[#F0F3F9] hover:text-[#0F1B3D] disabled:opacity-30 disabled:hover:bg-transparent transition-colors';
+  return (
+    <div className="fiq-font shrink-0 border-t border-[#E3E9F4] bg-white px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+      {/* Rows per page + counter */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <select
+          value={pageSize}
+          onChange={(e) => onPageSize(Number(e.target.value))}
+          disabled={!paginated}
+          aria-label="Lignes par page"
+          title="Lignes par page"
+          className="h-8 pl-2.5 pr-7 rounded-lg border border-[#DCE3EF] bg-white text-[12.5px] font-bold text-[#0F1B3D] focus:outline-none focus:border-[#2F6BFF] focus:ring-4 focus:ring-[#2F6BFF]/10 disabled:opacity-50"
+        >
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>
+              {n} / page
+            </option>
+          ))}
+        </select>
+        <span className="text-[12.5px] text-[#5B6B8C] tabular-nums whitespace-nowrap">
+          {paginated ? (
+            <>
+              <b className="font-bold text-[#0F1B3D]">
+                {from}–{to}
+              </b>{' '}
+              sur <b className="font-bold text-[#0F1B3D]">{total}</b>
+            </>
+          ) : (
+            <>
+              <b className="font-bold text-[#0F1B3D]">{total}</b> lignes regroupées
+            </>
+          )}
+        </span>
+      </div>
+
+      {/* Pages */}
+      <nav aria-label="Pagination" className="flex-1 flex items-center justify-center gap-0.5 min-w-0">
+        <button type="button" className={navBtn} onClick={() => onPage(1)} disabled={!paginated || page === 1} aria-label="Première page" title="Première page">
+          <ChevronsLeft className="w-4 h-4" />
+        </button>
+        <button type="button" className={navBtn} onClick={() => onPage(page - 1)} disabled={!paginated || page === 1} aria-label="Page précédente" title="Page précédente">
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        {paginated &&
+          pageWindow(page, pages).map((p, i) =>
+            p === '…' ? (
+              <span key={`e${i}`} className="w-6 text-center text-[12.5px] text-[#8A94A6]">
+                …
+              </span>
+            ) : (
+              <button
+                key={p}
+                type="button"
+                onClick={() => onPage(p)}
+                aria-current={p === page ? 'page' : undefined}
+                className={`min-w-8 h-8 px-2 rounded-lg text-[12.5px] tabular-nums transition-colors ${
+                  p === page ? 'bg-[#EAF1FF] text-[#2F6BFF] font-extrabold ring-1 ring-[#BFD3FF]' : 'text-[#0F1B3D] font-semibold hover:bg-[#F0F3F9]'
+                }`}
+              >
+                {p}
+              </button>
+            )
+          )}
+        <button type="button" className={navBtn} onClick={() => onPage(page + 1)} disabled={!paginated || page >= pages} aria-label="Page suivante" title="Page suivante">
+          <ChevronRight className="w-4 h-4" />
+        </button>
+        <button type="button" className={navBtn} onClick={() => onPage(pages)} disabled={!paginated || page >= pages} aria-label="Dernière page" title="Dernière page">
+          <ChevronsRight className="w-4 h-4" />
+        </button>
+      </nav>
+
+      {/* Exports */}
+      <div className="flex items-center gap-1.5 pl-3 border-l border-[#E3E9F4]">
+        <button
+          type="button"
+          title="Exporter en PDF"
+          aria-label="Exporter en PDF"
+          className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-lg border border-[#DCE3EF] bg-white text-[12.5px] font-bold text-[#0F1B3D] hover:border-[#F8C9CB] hover:bg-[#FFF5F5] transition-colors"
+        >
+          <FileText className="w-4 h-4 text-[#E5484D]" />
+          PDF
+        </button>
+        <button
+          type="button"
+          title="Exporter en Excel"
+          aria-label="Exporter en Excel"
+          className="h-8 px-2.5 inline-flex items-center gap-1.5 rounded-lg border border-[#DCE3EF] bg-white text-[12.5px] font-bold text-[#0F1B3D] hover:border-[#BBF7D0] hover:bg-[#F3FCF6] transition-colors"
+        >
+          <FileSpreadsheet className="w-4 h-4 text-[#16A34A]" />
+          Excel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 type OpenActionMenu = {
   rowId: string;
   vehicleId: string;
@@ -277,8 +459,8 @@ type OpenActionMenu = {
 function clampMenuPosition(
   x: number,
   y: number,
-  menuWidth = 256,
-  menuHeight = 320
+  menuWidth = 288,
+  menuHeight = 460
 ) {
   const pad = 8;
   const maxX = window.innerWidth - menuWidth - pad;
@@ -413,6 +595,12 @@ export function VehicleListPanel({
   onClearTrajectoryTrack,
   onOpenDetailedReport,
   onOpenAlertConfiguration,
+  onTrajectoryFocus,
+  onReplayTrajectory,
+  onStopReplay,
+  replayVehicleId = null,
+  onSaveTrajectoryRoute,
+  onTrajectoryLayersChange,
 }: VehicleListPanelProps) {
   const [width, setWidth] = useState(() =>
     typeof window !== 'undefined'
@@ -426,6 +614,8 @@ export function VehicleListPanel({
   const [openMenu, setOpenMenu] = useState<OpenActionMenu>(null);
   const [noEquipmentOpen, setNoEquipmentOpen] = useState(false);
   const [commandSentOpen, setCommandSentOpen] = useState<string | null>(null);
+  /** Commands sent from this session ("Demande position actuelle"), newest first */
+  const [sentCommands, setSentCommands] = useState<SuivieRow[]>([]);
   const [aadVehicle, setAadVehicle] = useState<Vehicle | null>(null);
   const [sort, setSort] = useState<ColumnSortState | null>(null);
   const [groupByColumnId, setGroupByColumnId] = useState<string | null>(null);
@@ -439,7 +629,8 @@ export function VehicleListPanel({
   const [draftEndDate, setDraftEndDate] = useState('');
   const [draftAction, setDraftAction] =
     useState<SuivieAction>('suivie_generale');
-  const [draftVehicles, setDraftVehicles] = useState<Set<string>>(new Set());
+  // All vehicles are selected by default
+  const [draftVehicles, setDraftVehicles] = useState<Set<string>>(() => new Set(vehicles.map((v) => v.id)));
   const [draftAlertTypes, setDraftAlertTypes] = useState<Set<string>>(
     new Set()
   );
@@ -448,7 +639,6 @@ export function VehicleListPanel({
   const [applied, setApplied] = useState<AppliedSuivieFilters | null>(null);
 
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
-  const [isActionDropdownOpen, setIsActionDropdownOpen] = useState(false);
   const [isAlertDropdownOpen, setIsAlertDropdownOpen] = useState(false);
   const [isColumnSettingsOpen, setIsColumnSettingsOpen] = useState(false);
   const [vehicleSearch, setVehicleSearch] = useState('');
@@ -456,7 +646,6 @@ export function VehicleListPanel({
 
   const panelRef = useRef<HTMLDivElement>(null);
   const vehicleDropdownRef = useRef<HTMLDivElement>(null);
-  const actionDropdownRef = useRef<HTMLDivElement>(null);
   const alertDropdownRef = useRef<HTMLDivElement>(null);
   const columnSettingsRef = useRef<HTMLDivElement>(null);
   const suppressSortClickRef = useRef(false);
@@ -470,6 +659,40 @@ export function VehicleListPanel({
     reorder,
     resetToDefault,
   } = useColumnPreferences(activeAction);
+  // Trajectory view: per-vehicle mode, details, saved routes, selection
+  const [trajModes, setTrajModes] = useState<Record<string, TrajectoryViewMode>>({});
+  const [trajDetails, setTrajDetails] = useState<Set<string>>(() => new Set());
+  const [savedTrajRoutes, setSavedTrajRoutes] = useState<Set<string>>(() => new Set());
+  const [selectedTrajRowId, setSelectedTrajRowId] = useState<string | null>(null);
+  const [selectedSampleT, setSelectedSampleT] = useState<number | null>(null);
+  const [trajToast, setTrajToast] = useState<string | null>(null);
+  /** Vehicles whose trajectory is hidden on the map (all shown by default) */
+  const [hiddenTrajVehicles, setHiddenTrajVehicles] = useState<Set<string>>(() => new Set());
+  /** "Enregistrer comme route" dialog */
+  const [routeDraft, setRouteDraft] = useState<{ vehicleId: string; name: string } | null>(null);
+  /** Visible width of the scrollable table, so group rows stay pinned to it */
+  const [tableViewportW, setTableViewportW] = useState<number | null>(null);
+  const tableResizeObs = useRef<ResizeObserver | null>(null);
+  const tableScrollRef = useCallback((el: HTMLDivElement | null) => {
+    tableResizeObs.current?.disconnect();
+    if (!el) return;
+    const update = () => setTableViewportW(el.clientWidth);
+    update();
+    tableResizeObs.current = new ResizeObserver(update);
+    tableResizeObs.current.observe(el);
+  }, []);
+  // Trajectory rows whose full dashboard grid is expanded
+  const [expandedDashRows, setExpandedDashRows] = useState<Set<string>>(() => new Set());
+  // Same show/hide choice as the vehicle card (⚙ Personnaliser → Tableau de bord)
+  const dashConfig = useVehicleFieldConfig();
+  const shownDash = DASH_INDICATORS.filter((d) => dashConfig.isVisible(`dash:${d.id}`));
+  const toggleDashRow = (rowId: string) =>
+    setExpandedDashRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(rowId)) next.delete(rowId);
+      else next.add(rowId);
+      return next;
+    });
 
   const tableColumns = useMemo(
     () =>
@@ -552,12 +775,6 @@ export function VehicleListPanel({
         setIsVehicleDropdownOpen(false);
       }
       if (
-        actionDropdownRef.current &&
-        !actionDropdownRef.current.contains(e.target as Node)
-      ) {
-        setIsActionDropdownOpen(false);
-      }
-      if (
         alertDropdownRef.current &&
         !alertDropdownRef.current.contains(e.target as Node)
       ) {
@@ -573,6 +790,13 @@ export function VehicleListPanel({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [openMenu]);
+
+  useEffect(() => {
+    setSelectedTrajRowId(null);
+    setSelectedSampleT(null);
+    onTrajectoryFocus?.(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeAction]);
 
   useEffect(() => {
     setSort(null);
@@ -619,8 +843,12 @@ export function VehicleListPanel({
   const scopedRows = useMemo(() => {
     if (!applied) return [] as SuivieRow[];
     const all = buildRowsForAction(applied.action, vehicles);
-    return applySuivieFilters(all, applied);
-  }, [applied, vehicles]);
+    const filtered = applySuivieFilters(all, applied);
+    if (applied.action !== 'commandes') return filtered;
+    const scope = applied.vehicleIds;
+    const mine = sentCommands.filter((c) => scope.size === 0 || scope.has(c.vehicleId));
+    return [...mine, ...filtered];
+  }, [applied, vehicles, sentCommands]);
 
   const tableRows = useMemo(() => {
     let rows = scopedRows;
@@ -694,6 +922,51 @@ export function VehicleListPanel({
     return tableRows.filter((row) => rowMatchesTableSearch(row, q));
   }, [tableRows, tableSearch, rowMatchesTableSearch]);
 
+  // Pagination (not applied while rows are grouped by a column)
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const paginated = !groupByColumnId;
+  const pageCount = Math.max(1, Math.ceil(displayTableRows.length / pageSize));
+  const currentPage = Math.min(page, pageCount);
+  const pageRows = paginated
+    ? displayTableRows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+    : displayTableRows;
+  useEffect(() => {
+    setPage(1);
+  }, [activeAction, applied, tableSearch, sort, pageSize, groupByColumnId]);
+
+  /** Vehicles listed in the trajectory table, in display order, with their map colour */
+  const trajVehicleOrder = useMemo(() => {
+    if (activeAction !== 'trajectoire') return [] as string[];
+    const seen: string[] = [];
+    for (const row of displayTableRows) if (!seen.includes(row.vehicleId)) seen.push(row.vehicleId);
+    return seen;
+  }, [activeAction, displayTableRows]);
+  const trajColorOf = (vehicleId: string) =>
+    TRAJECTORY_COLORS[Math.max(0, trajVehicleOrder.indexOf(vehicleId)) % TRAJECTORY_COLORS.length];
+
+  useEffect(() => {
+    if (!onTrajectoryLayersChange) return;
+    if (activeAction !== 'trajectoire') {
+      onTrajectoryLayersChange([]);
+      return;
+    }
+    const layers: TrajectoryLayer[] = [];
+    trajVehicleOrder.forEach((vehicleId, i) => {
+      if (hiddenTrajVehicles.has(vehicleId)) return;
+      const vehicle = vehicleById[vehicleId];
+      const traj = vehicle ? getVehicleTrajectory(vehicle) : null;
+      if (!vehicle || !traj || traj.path.length < 2) return;
+      layers.push({
+        vehicleId,
+        label: vehicle.matricule || vehicle.name,
+        color: TRAJECTORY_COLORS[i % TRAJECTORY_COLORS.length],
+        path: traj.path,
+      });
+    });
+    onTrajectoryLayersChange(layers);
+  }, [activeAction, trajVehicleOrder, hiddenTrajVehicles, vehicleById, onTrajectoryLayersChange]);
+
   const stopCirculationDistanceTotalKm = useMemo(() => {
     if (activeAction !== 'stop_circulation') return null;
     let total = 0;
@@ -752,6 +1025,12 @@ export function VehicleListPanel({
   ]);
 
   const toggleVehicle = (id: string) => {
+    if (draftAction === 'trajectoire') {
+      // Trajectoire works on one vehicle at a time
+      setDraftVehicles(new Set([id]));
+      setIsVehicleDropdownOpen(false);
+      return;
+    }
     setDraftVehicles((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -772,6 +1051,7 @@ export function VehicleListPanel({
   const getVehicleButtonText = () => {
     const vCount = draftVehicles.size;
     if (vCount === 0) return 'Sélectionner des véhicules';
+    if (vCount === vehicles.length) return `Tous les véhicules (${vCount})`;
     if (vCount === 1) {
       const v = vehicles.find((x) => x.id === [...draftVehicles][0]);
       return v?.matricule || v?.name || '1 véhicule';
@@ -837,6 +1117,44 @@ export function VehicleListPanel({
     ]
   );
 
+  /** Narrow panel: tab bar shows icons only (labels in tooltips) */
+  const panelW = isDesktop ? width : typeof window !== 'undefined' ? window.innerWidth : 800;
+  const compactTabs = panelW < 520;
+
+  /** Multi-vehicle selection kept aside while Trajectoire (single vehicle) is open */
+  const multiSelectionRef = useRef<Set<string> | null>(null);
+
+  /** Switch the panel view (tab bar) */
+  const selectAction = (action: SuivieAction) => {
+    if (action === 'trajectoire' && draftAction !== 'trajectoire') {
+      multiSelectionRef.current = new Set(draftVehicles);
+      if (draftVehicles.size !== 1) {
+        const preferred =
+          (selectedVehicleId && vehicles.some((v) => v.id === selectedVehicleId) && selectedVehicleId) ||
+          [...draftVehicles][0] ||
+          vehicles[0]?.id;
+        if (preferred) setDraftVehicles(new Set([preferred]));
+      }
+    } else if (action !== 'trajectoire' && draftAction === 'trajectoire' && multiSelectionRef.current) {
+      setDraftVehicles(multiSelectionRef.current);
+      multiSelectionRef.current = null;
+    }
+    setDraftAction(action);
+    setApplied((prev) =>
+      prev
+        ? { ...prev, action }
+        : {
+            action,
+            vehicleIds: new Set(draftVehicles),
+            departments: new Set(),
+            startDate: draftStartDate,
+            endDate: draftEndDate,
+            alertTypes: new Set(draftAlertTypes),
+          }
+    );
+    setIsColumnSettingsOpen(false);
+  };
+
   const handleZoomRow = useCallback(
     (row: SuivieRow) => {
       const vehicle = vehicleById[row.vehicleId];
@@ -895,8 +1213,36 @@ export function VehicleListPanel({
           break;
         }
         case 'requestPosition': {
+          const now = new Date();
+          const id = `cmd-live-${vehicleId}-${now.getTime()}`;
+          const pad = (n: number) => String(n).padStart(2, '0');
+          const sendDate = `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+          setSentCommands((prev) => [
+            {
+              id,
+              vehicleId,
+              vehicleName: vehicle.name,
+              department: ((SUIVIE_DEPARTMENTS as readonly string[]).includes(vehicle.departmentId ?? '')
+                ? vehicle.departmentId
+                : SUIVIE_DEPARTMENTS[0]) as SuivieDepartment,
+              filterDate: now.toISOString(),
+              SendDate: sendDate,
+              Vehicle: vehicle.matricule || vehicle.name,
+              CommandType: 'Demande position',
+              Status: 'En attente',
+            } satisfies CommandRow,
+            ...prev,
+          ]);
+          // The tracker answers a few seconds later
+          window.setTimeout(() => {
+            setSentCommands((prev) =>
+              prev.map((c) =>
+                c.id === id ? ({ ...(c as CommandRow), Status: vehicle.status === 'offline' ? 'Échouée' : 'Exécutée' } satisfies CommandRow) : c
+              )
+            );
+          }, 3500);
           focusSuivieAction('commandes', vehicleId);
-          setCommandSentOpen('Demande de position actuelle envoyée');
+          setTrajToast(`Demande de position envoyée à ${vehicle.matricule || vehicle.name}`);
           break;
         }
         case 'remoteStop': {
@@ -974,27 +1320,236 @@ export function VehicleListPanel({
     if (vehicle) onSelectVehicle(vehicle);
   };
 
+  const trajectoryOf = (vehicleId: string) => {
+    const v = vehicleById[vehicleId];
+    return v ? getVehicleTrajectory(v) : null;
+  };
+
+  /** Row click in the trajectory table: show the stop / segment on the map */
+  const handleTrajRowClick = (row: SuivieRow) => {
+    const vehicle = vehicleById[row.vehicleId];
+    const traj = trajectoryOf(row.vehicleId);
+    const seg = traj?.segments.find((g) => g.id === row.id);
+    if (!vehicle || !traj || !seg) return;
+    onSelectVehicle(vehicle);
+    onShowTrajectoryTrack?.(traj.path);
+    setSelectedTrajRowId(row.id);
+    setSelectedSampleT(null);
+    onTrajectoryFocus?.({
+      vehicleId: vehicle.id,
+      kind: seg.kind,
+      position: seg.position,
+      time: seg.kind === 'Stop' ? seg.start.getTime() : seg.end.getTime(),
+      speed: seg.kind === 'Stop' ? 0 : seg.avgSpeed,
+      place: seg.place,
+      durationMin: seg.durationMin,
+      path: seg.kind === 'Circulation' ? seg.path : undefined,
+    });
+  };
+
+  /** Chart click: show that exact moment on the map */
+  const handleTrajSamplePick = (vehicleId: string, sample: TrajSample) => {
+    const vehicle = vehicleById[vehicleId];
+    const traj = trajectoryOf(vehicleId);
+    if (!vehicle || !traj) return;
+    onSelectVehicle(vehicle);
+    onShowTrajectoryTrack?.(traj.path);
+    setSelectedTrajRowId(null);
+    setSelectedSampleT(sample.t);
+    onTrajectoryFocus?.({
+      vehicleId,
+      kind: sample.speed === 0 ? 'Stop' : 'Point',
+      position: sample.point,
+      time: sample.t,
+      speed: sample.speed,
+    });
+  };
+
+  const toggleTrajPlay = (vehicleId: string) => {
+    const vehicle = vehicleById[vehicleId];
+    const traj = trajectoryOf(vehicleId);
+    if (!vehicle || !traj) return;
+    if (replayVehicleId === vehicleId) {
+      onStopReplay?.();
+      return;
+    }
+    onSelectVehicle(vehicle);
+    onTrajectoryFocus?.(null);
+    setSelectedTrajRowId(null);
+    onReplayTrajectory?.(vehicle, traj);
+  };
+
+  const saveTrajRoute = (vehicleId: string) => {
+    const vehicle = vehicleById[vehicleId];
+    const traj = trajectoryOf(vehicleId);
+    if (!vehicle || !traj) return;
+    if (savedTrajRoutes.has(vehicleId)) {
+      setTrajToast('Ce trajet est déjà enregistré comme route.');
+      return;
+    }
+    const day = traj.start.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+    setRouteDraft({ vehicleId, name: `${traj.from} → ${traj.to} · ${vehicle.matricule || vehicle.name} · ${day}` });
+  };
+
+  const confirmSaveRoute = () => {
+    if (!routeDraft) return;
+    const name = routeDraft.name.trim();
+    const vehicle = vehicleById[routeDraft.vehicleId];
+    const traj = trajectoryOf(routeDraft.vehicleId);
+    if (!name || !vehicle || !traj) return;
+    onSaveTrajectoryRoute?.(vehicle, traj, name);
+    setSavedTrajRoutes((prev) => new Set(prev).add(routeDraft.vehicleId));
+    setTrajToast(`Route « ${name} » enregistrée · visible dans Géo › Routes`);
+    setRouteDraft(null);
+  };
+
+  useEffect(() => {
+    if (!trajToast) return;
+    const t = window.setTimeout(() => setTrajToast(null), 3500);
+    return () => window.clearTimeout(t);
+  }, [trajToast]);
+
+  /** Trajectory table body: rows grouped by vehicle with header actions */
+  const renderTrajectoryGroups = (rows: SuivieRow[]) => {
+    const order: string[] = [];
+    const byVehicle: Record<string, SuivieRow[]> = {};
+    for (const row of rows) {
+      if (!byVehicle[row.vehicleId]) {
+        byVehicle[row.vehicleId] = [];
+        order.push(row.vehicleId);
+      }
+      byVehicle[row.vehicleId].push(row);
+    }
+    return order.map((vehicleId) => {
+      const vehicle = vehicleById[vehicleId];
+      if (!vehicle) return null;
+      const traj = trajectoryOf(vehicleId);
+      const key = `traj:${vehicleId}`;
+      const collapsed = collapsedGroups.has(key);
+      const mode = trajModes[vehicleId] ?? 'rows';
+      const groupRows = [...byVehicle[vehicleId]].sort((a, b) =>
+        String(a.filterDate).localeCompare(String(b.filterDate))
+      );
+      return (
+        <Fragment key={key}>
+          <TrajectoryGroupHeader
+            vehicle={vehicle}
+            traj={traj}
+            colCount={colCount}
+            viewportWidth={tableViewportW}
+            collapsed={collapsed}
+            onToggleCollapse={() => toggleGroupCollapse(key)}
+            mode={mode}
+            onModeChange={(m) => setTrajModes((prev) => ({ ...prev, [vehicleId]: m }))}
+            detailsOpen={trajDetails.has(vehicleId)}
+            onToggleDetails={() =>
+              setTrajDetails((prev) => {
+                const next = new Set(prev);
+                if (next.has(vehicleId)) next.delete(vehicleId);
+                else next.add(vehicleId);
+                return next;
+              })
+            }
+            playing={replayVehicleId === vehicleId}
+            onTogglePlay={() => toggleTrajPlay(vehicleId)}
+            saved={savedTrajRoutes.has(vehicleId)}
+            onSaveRoute={() => saveTrajRoute(vehicleId)}
+            color={trajColorOf(vehicleId)}
+            shownOnMap={!hiddenTrajVehicles.has(vehicleId)}
+            onToggleShown={() =>
+              setHiddenTrajVehicles((prev) => {
+                const next = new Set(prev);
+                if (next.has(vehicleId)) next.delete(vehicleId);
+                else next.add(vehicleId);
+                return next;
+              })
+            }
+          />
+          {!collapsed && traj && trajDetails.has(vehicleId) && (
+            <TrajectoryDetailsRow vehicle={vehicle} traj={traj} colCount={colCount} viewportWidth={tableViewportW} />
+          )}
+          {!collapsed &&
+            (mode === 'graph' && traj ? (
+              <TrajectoryGraphRow
+                vehicle={vehicle}
+                traj={traj}
+                colCount={colCount}
+                viewportWidth={tableViewportW}
+                activeT={selectedSampleT}
+                onPick={(sample) => handleTrajSamplePick(vehicleId, sample)}
+              />
+            ) : (
+              groupRows.map((row) => renderDataRow(row))
+            ))}
+        </Fragment>
+      );
+    });
+  };
+
   const renderDataRow = (row: SuivieRow) => {
     const isGenerale = activeAction === 'suivie_generale';
+    const isTraj = activeAction === 'trajectoire';
     const commonClasses = `transition-colors border-b border-slate-100 ${
-      selectedVehicleId === row.vehicleId
-        ? 'bg-blue-50'
-        : 'bg-white hover:bg-slate-50'
+      isTraj
+        ? selectedTrajRowId === row.id
+          ? 'bg-[#EAF1FF] shadow-[inset_3px_0_0_#2F6BFF] cursor-pointer'
+          : 'bg-white hover:bg-slate-50 cursor-pointer'
+        : selectedVehicleId === row.vehicleId
+          ? 'bg-blue-50'
+          : 'bg-white hover:bg-slate-50'
     }${isGenerale ? ' cursor-pointer' : ''}`;
 
+    const dashOn =
+      activeAction === 'trajectoire'
+        ? getTrajectoryDashIndicators(row.id, String(row['StopRun']) === 'Circulation')
+        : null;
+    const dashExpanded = expandedDashRows.has(row.id);
+    const litShown = dashOn ? shownDash.filter((d) => dashOn.has(d.id)) : [];
+
     return (
+      <Fragment key={row.id}>
       <tr
-        key={row.id}
         data-vehicle-row=""
         className={commonClasses}
         onClick={() => {
-          selectRowVehicle(row);
+          if (activeAction === 'trajectoire') handleTrajRowClick(row);
+          else selectRowVehicle(row);
         }}
       >
         {tableColumns.map((col) => {
           const raw = row[col.id];
           const value =
             raw === undefined || raw === null ? '—' : String(raw);
+          if (col.id === 'DashboardIcons') {
+            return (
+              <td key={col.id} className="px-2 py-1.5 whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleDashRow(row.id);
+                  }}
+                  aria-expanded={dashExpanded}
+                  title={dashExpanded ? 'Masquer le tableau de bord' : 'Afficher tout le tableau de bord'}
+                  className={`flex items-center gap-1 h-7 pl-1 pr-1.5 rounded-lg border transition-colors ${
+                    dashExpanded ? 'border-[#BFD3FF] bg-[#EAF1FF]' : 'border-transparent hover:border-slate-200 hover:bg-white'
+                  }`}
+                >
+                  {litShown.length === 0 ? (
+                    <span className="text-[11px] text-slate-400 px-1">Aucun</span>
+                  ) : (
+                    litShown.slice(0, 5).map((d) => <DashIcon key={d.id} indicator={d} active size={18} />)
+                  )}
+                  {litShown.length > 5 && (
+                    <span className="text-[10.5px] font-bold text-slate-500">+{litShown.length - 5}</span>
+                  )}
+                  <ChevronDown
+                    className={`w-3.5 h-3.5 text-slate-500 transition-transform ${dashExpanded ? 'rotate-180' : ''}`}
+                  />
+                </button>
+              </td>
+            );
+          }
           return (
             <td key={col.id} className={cellClassFor(col.id, value)}>
               {renderCellContent(col.id, value, row, handleZoomRow)}
@@ -1018,6 +1573,33 @@ export function VehicleListPanel({
           </td>
         )}
       </tr>
+      {dashOn && dashExpanded && (
+        <tr className="bg-[#FAFBFE] border-b border-slate-100">
+          <td colSpan={colCount} className="px-3 py-2.5">
+            {shownDash.length === 0 ? (
+              <p className="text-[11.5px] text-slate-400">
+                Tous les indicateurs sont masqués (fiche véhicule → ⚙ Personnaliser).
+              </p>
+            ) : (
+              <div className="flex flex-wrap gap-x-1.5 gap-y-1" aria-label="Tableau de bord">
+                {shownDash.map((d) => {
+                  const on = dashOn.has(d.id);
+                  return (
+                    <span
+                      key={d.id}
+                      title={`${d.label} — ${on ? 'Actif' : 'Inactif'}`}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-white"
+                    >
+                      <DashIcon indicator={d} active={on} size={22} />
+                    </span>
+                  );
+                })}
+              </div>
+            )}
+          </td>
+        </tr>
+      )}
+      </Fragment>
     );
   };
 
@@ -1050,12 +1632,55 @@ export function VehicleListPanel({
             collisionDetection={groupByCollisionDetection}
             onDragEnd={handleDragEnd}
           >
-            <div className="shrink-0 border-b border-slate-200 bg-gradient-to-b from-white to-slate-50/50 overflow-visible relative z-20">
+            <div className="fiq-font shrink-0 border-b border-[#E3E9F4] bg-white overflow-visible relative z-20">
+              {/* Navigation entre les vues — onglets pleine largeur, soulignés */}
+              <nav aria-label="Vues du suivi" className="fiq-font flex border-b border-[#E3E9F4] px-1">
+                {TAB_ACTIONS.map((tab) => {
+                  const active = activeAction === tab.id;
+                  const Icon = tab.icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => selectAction(tab.id)}
+                      aria-current={active ? 'page' : undefined}
+                      aria-label={tab.label}
+                      title={compactTabs ? tab.label : undefined}
+                      className={`relative flex-1 min-w-0 h-11 inline-flex items-center justify-center gap-2 px-2 text-[13px] whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#2F6BFF] ${
+                        active ? 'text-[#0F1B3D] font-extrabold' : 'text-[#5B6B8C] font-semibold hover:text-[#0F1B3D] hover:bg-[#F7F9FF]'
+                      }`}
+                    >
+                      <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-[#2F6BFF]' : ''}`} />
+                      {!compactTabs && <span className="truncate">{tab.label}</span>}
+                      <span
+                        aria-hidden
+                        className={`absolute left-3 right-3 -bottom-px h-[3px] rounded-t-full transition-colors ${active ? 'bg-[#2F6BFF]' : 'bg-transparent'}`}
+                      />
+                    </button>
+                  );
+                })}
+                {activeAction === 'commandes' && (
+                  <span className="relative flex-1 min-w-0 h-11 inline-flex items-center justify-center gap-2 px-2 text-[13px] font-extrabold text-[#0F1B3D] whitespace-nowrap">
+                    <Send className="w-4 h-4 text-[#2F6BFF] shrink-0" />
+                    {!compactTabs && <span className="truncate">Commandes</span>}
+                    <button
+                      type="button"
+                      onClick={() => selectAction('suivie_generale')}
+                      aria-label="Fermer les commandes"
+                      title="Fermer les commandes"
+                      className="w-6 h-6 rounded-md text-[#5B6B8C] hover:bg-[#F0F3F9] hover:text-[#0F1B3D] inline-flex items-center justify-center shrink-0"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                    <span aria-hidden className="absolute left-3 right-3 -bottom-px h-[3px] rounded-t-full bg-[#2F6BFF]" />
+                  </span>
+                )}
+              </nav>
               <div className="px-3 py-2 flex flex-col gap-1.5 overflow-visible">
-                {/* Ligne 1 — filtres */}
+                {/* Une seule ligne — filtres, recherche, regroupement, exports */}
                 <div className="w-full flex flex-wrap items-center gap-1.5">
                   <div
-                    className="relative flex-1 min-w-[120px]"
+                    className="order-2 relative flex-[1_1_170px] min-w-[140px] max-w-[260px]"
                     ref={vehicleDropdownRef}
                   >
                     <button
@@ -1065,14 +1690,18 @@ export function VehicleListPanel({
                       }
                       title="Filtrer les véhicules"
                       aria-label="Filtrer les véhicules"
-                      className="w-full h-8 flex items-center justify-between gap-1.5 bg-white border border-slate-200 hover:border-blue-400 rounded-lg px-2.5 text-xs transition-all shadow-sm"
+                      className={`w-full h-9 flex items-center justify-between gap-2 rounded-xl px-3 text-[13px] transition-colors border ${
+                        isVehicleDropdownOpen
+                          ? 'border-[#2F6BFF] bg-white ring-4 ring-[#2F6BFF]/10'
+                          : 'border-[#DCE3EF] bg-white hover:border-[#BFD3FF] hover:bg-[#F7F9FF]'
+                      }`}
                     >
-                      <Car className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                      <Car className="w-4 h-4 text-[#2F6BFF] shrink-0" />
                       <span
                         className={`truncate flex-1 text-left ${
                           draftVehicles.size > 0
-                            ? 'text-slate-900 font-medium'
-                            : 'text-slate-500'
+                            ? 'text-[#0F1B3D] font-semibold'
+                            : 'text-[#8A94A6]'
                         }`}
                       >
                         {getVehicleButtonText()}
@@ -1105,6 +1734,11 @@ export function VehicleListPanel({
                                 className="w-full pl-7 pr-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
                               />
                             </div>
+                            {draftAction === 'trajectoire' ? (
+                              <p className="mt-1.5 px-1 text-[11px] font-semibold text-[#2F6BFF]">
+                                Trajectoire : choisissez un seul véhicule
+                              </p>
+                            ) : (
                             <div className="flex items-center justify-between mt-1.5 px-1">
                               <FilterBulkActions
                                 onSelectAll={() =>
@@ -1117,6 +1751,7 @@ export function VehicleListPanel({
                                 onClear={() => setDraftVehicles(new Set())}
                               />
                             </div>
+                            )}
                             <p className="mt-1 px-1 text-[10px] text-slate-500">
                               {draftVehicles.size} sélectionné
                               {draftVehicles.size === 1 ? '' : 's'}
@@ -1137,15 +1772,18 @@ export function VehicleListPanel({
                                   className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group transition-colors"
                                 >
                                   <div
-                                    className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                                    className={`w-3.5 h-3.5 ${draftAction === 'trajectoire' ? 'rounded-full' : 'rounded'} border flex items-center justify-center transition-colors shrink-0 ${
                                       draftVehicles.has(vehicle.id)
                                         ? 'bg-blue-600 border-blue-600'
                                         : 'border-slate-300 bg-white group-hover:border-blue-400'
                                     }`}
                                   >
-                                    {draftVehicles.has(vehicle.id) && (
-                                      <Check className="w-2.5 h-2.5 text-white" />
-                                    )}
+                                    {draftVehicles.has(vehicle.id) &&
+                                      (draftAction === 'trajectoire' ? (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                      ) : (
+                                        <Check className="w-2.5 h-2.5 text-white" />
+                                      ))}
                                   </div>
                                   <input
                                     type="checkbox"
@@ -1176,102 +1814,22 @@ export function VehicleListPanel({
                   </div>
 
                   {draftAction !== 'suivie_generale' && (
-                    <>
-                      <div
-                        className="w-[130px] min-w-[110px] shrink-0"
-                        title="Date début"
-                      >
-                        <DateTimePicker
-                          value={draftStartDate}
-                          onChange={setDraftStartDate}
-                          placeholder="Début"
-                        />
-                      </div>
-                      <div
-                        className="w-[130px] min-w-[110px] shrink-0"
-                        title="Date fin"
-                      >
-                        <DateTimePicker
-                          value={draftEndDate}
-                          onChange={setDraftEndDate}
-                          placeholder="Fin"
-                        />
-                      </div>
-                    </>
+                    <DateTimeRangePicker
+                      iconOnly
+                      className="order-5 shrink-0"
+                      start={draftStartDate}
+                      end={draftEndDate}
+                      onChange={(s, e) => {
+                        setDraftStartDate(s);
+                        setDraftEndDate(e);
+                      }}
+                      placeholder="Période"
+                    />
                   )}
-
-                  <div
-                    className="relative w-[150px] min-w-[120px] shrink-0"
-                    ref={actionDropdownRef}
-                  >
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setIsActionDropdownOpen(!isActionDropdownOpen)
-                      }
-                      title="Action Suivi"
-                      aria-label="Action Suivi"
-                      className="w-full h-8 flex items-center justify-between gap-1.5 bg-white border border-slate-200 hover:border-blue-400 rounded-lg px-2.5 text-xs transition-all shadow-sm"
-                    >
-                      <Layers className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                      <span className="text-slate-900 font-medium truncate flex-1 text-left">
-                        {ACTIONS.find((a) => a.id === draftAction)?.label}
-                      </span>
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${
-                          isActionDropdownOpen ? 'rotate-180' : ''
-                        }`}
-                      />
-                    </button>
-
-                    <AnimatePresence>
-                      {isActionDropdownOpen && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 5 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: 5 }}
-                          className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden min-w-[180px]"
-                        >
-                          <div className="p-1">
-                            {ACTIONS.map((action) => (
-                              <button
-                                key={action.id}
-                                type="button"
-                                onClick={() => {
-                                  setDraftAction(action.id);
-                                  setApplied((prev) =>
-                                    prev
-                                      ? { ...prev, action: action.id }
-                                      : {
-                                          action: action.id,
-                                          vehicleIds: new Set(draftVehicles),
-                                          departments: new Set(),
-                                          startDate: draftStartDate,
-                                          endDate: draftEndDate,
-                                          alertTypes: new Set(draftAlertTypes),
-                                        }
-                                  );
-                                  setIsActionDropdownOpen(false);
-                                  setIsColumnSettingsOpen(false);
-                                }}
-                                className={`w-full text-left px-3 py-2 rounded-lg text-sm transition-colors ${
-                                  draftAction === action.id
-                                    ? 'bg-blue-50 text-blue-700 font-medium'
-                                    : 'text-slate-700 hover:bg-slate-50'
-                                }`}
-                              >
-                                {action.label}
-                              </button>
-                            ))}
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
 
                   {draftAction === 'alertes' && (
                     <div
-                      className="relative w-[150px] min-w-[120px] shrink-0"
+                      className="order-4 relative shrink-0"
                       ref={alertDropdownRef}
                     >
                       <button
@@ -1281,14 +1839,15 @@ export function VehicleListPanel({
                         }
                         title="Types d'alerte"
                         aria-label="Types d'alerte"
-                        className="w-full h-8 flex items-center justify-between gap-1.5 bg-white border border-slate-200 hover:border-blue-400 rounded-lg px-2.5 text-xs transition-all shadow-sm"
+                        className="h-9 flex items-center gap-2 bg-white border border-[#DCE3EF] hover:border-[#BFD3FF] hover:bg-[#F7F9FF] rounded-xl px-3 text-[13px] transition-colors"
                       >
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                        <span className="truncate text-slate-700 font-medium flex-1 text-left">
-                          {draftAlertTypes.size === 0
-                            ? 'Tous les types'
-                            : `${draftAlertTypes.size} type(s)`}
-                        </span>
+                        <span className="text-slate-700 font-medium whitespace-nowrap">Types</span>
+                        {draftAlertTypes.size > 0 && (
+                          <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#2F6BFF] text-white text-[10.5px] font-bold inline-flex items-center justify-center">
+                            {draftAlertTypes.size}
+                          </span>
+                        )}
                         <ChevronDown
                           className={`w-3.5 h-3.5 text-slate-400 transition-transform shrink-0 ${
                             isAlertDropdownOpen ? 'rotate-180' : ''
@@ -1335,18 +1894,15 @@ export function VehicleListPanel({
                       </AnimatePresence>
                     </div>
                   )}
-                </div>
 
-                {/* Ligne 2 — recherche, regroupement, exports */}
-                <div className="w-full flex flex-wrap items-center gap-1.5">
-                  <div className="relative flex-1 min-w-[140px]">
-                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                  <div className="order-3 relative flex-[1_1_140px] min-w-[100px]">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A94A6] pointer-events-none" />
                     <input
                       type="text"
                       value={tableSearch}
                       onChange={(e) => setTableSearch(e.target.value)}
                       placeholder="Rechercher dans le tableau…"
-                      className="w-full h-8 pl-8 pr-3 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500 focus:bg-white transition-colors"
+                      className="w-full h-9 pl-9 pr-3 text-[13px] text-[#0F1B3D] bg-[#F7F9FF] border border-[#E3E9F4] rounded-xl placeholder:text-[#8A94A6] focus:outline-none focus:bg-white focus:border-[#2F6BFF] focus:ring-4 focus:ring-[#2F6BFF]/10 transition-colors"
                     />
                   </div>
 
@@ -1358,17 +1914,22 @@ export function VehicleListPanel({
                     onClear={clearGroupBy}
                   />
 
-                  <div className="flex items-center gap-1.5 shrink-0">
+                  <div className="order-6 flex items-center gap-1.5 shrink-0">
                     <div className="relative shrink-0" ref={columnSettingsRef}>
                       <button
                         type="button"
                         onClick={() =>
                           setIsColumnSettingsOpen(!isColumnSettingsOpen)
                         }
-                        title="Paramétrer les colonnes"
-                        className="flex items-center justify-center w-8 h-8 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg transition-all shadow-sm"
+                        title="Colonnes affichées"
+                        aria-label="Colonnes affichées"
+                        className={`flex items-center justify-center w-9 h-9 rounded-xl border transition-colors ${
+                          isColumnSettingsOpen
+                            ? 'border-[#2F6BFF] bg-[#EAF1FF] text-[#2F6BFF]'
+                            : 'border-[#DCE3EF] bg-white text-[#2F6BFF] hover:border-[#BFD3FF] hover:bg-[#F7F9FF]'
+                        }`}
                       >
-                        <Settings className="w-4 h-4" />
+                        <Columns3 className="w-4 h-4" />
                       </button>
 
                       <AnimatePresence>
@@ -1425,26 +1986,13 @@ export function VehicleListPanel({
                       </AnimatePresence>
                     </div>
 
-                    <button
-                      type="button"
-                      className="h-8 flex items-center justify-center gap-1.5 px-2.5 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-medium transition-all shadow-sm"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>PDF</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="h-8 flex items-center justify-center gap-1.5 px-2.5 text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 rounded-lg text-xs font-medium transition-all shadow-sm"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Excel</span>
-                    </button>
                   </div>
                 </div>
               </div>
             </div>
 
             <div
+              ref={tableScrollRef}
               className="flex-1 overflow-x-auto overflow-y-auto bg-white min-w-0"
               onScroll={() => {
                 if (openMenu) setOpenMenu(null);
@@ -1489,6 +2037,8 @@ export function VehicleListPanel({
                             : 'Aucun résultat pour ces filtres.'}
                         </td>
                       </tr>
+                    ) : activeAction === 'trajectoire' && !groupByColumnId ? (
+                      renderTrajectoryGroups(pageRows)
                     ) : groupByColumnId && displayRowsByGroup ? (
                       Object.entries(displayRowsByGroup).map(
                         ([groupKey, rows]) => {
@@ -1528,7 +2078,7 @@ export function VehicleListPanel({
                         }
                       )
                     ) : (
-                      displayTableRows.map((row) => renderDataRow(row))
+                      pageRows.map((row) => renderDataRow(row))
                     )}
                   </tbody>
                   {stopCirculationDistanceTotalKm != null && (
@@ -1546,7 +2096,27 @@ export function VehicleListPanel({
                   )}
                 </table>
               </div>
+              <TableFooter
+                page={currentPage}
+                pageSize={pageSize}
+                total={displayTableRows.length}
+                paginated={paginated}
+                onPage={(p) => {
+                  setPage(Math.max(1, Math.min(pageCount, p)));
+                  const el = document.querySelector('[data-left-panel] .overflow-y-auto');
+                  if (el) el.scrollTop = 0;
+                }}
+                onPageSize={setPageSize}
+              />
             </DndContext>
+            {trajToast && (
+              <div
+                role="status"
+                className="fiq-font absolute left-1/2 -translate-x-1/2 bottom-4 z-20 px-3.5 py-2 rounded-xl bg-[#0F1B3D] text-white text-[12.5px] font-semibold shadow-lg"
+              >
+                {trajToast}
+              </div>
+            )}
 
           {typeof document !== 'undefined' &&
             createPortal(
@@ -1558,13 +2128,15 @@ export function VehicleListPanel({
                     animate={{ opacity: 1, scale: 1 }}
                     exit={{ opacity: 0, scale: 0.95 }}
                     transition={{ duration: 0.12 }}
-                    className="action-menu fixed w-64 bg-white rounded-xl shadow-2xl border border-slate-200 py-1 z-[9999] overflow-hidden"
+                    role="menu"
+                    aria-label="Actions du véhicule"
+                    className="action-menu fiq-font fixed w-72 bg-white rounded-2xl shadow-[0_18px_40px_rgba(15,27,61,0.18)] border border-[#E3E9F4] p-1.5 z-[9999] overflow-hidden"
                     style={{ left: openMenu.x, top: openMenu.y }}
                     onMouseDown={(e) => e.stopPropagation()}
                     onClick={(e) => e.stopPropagation()}
                   >
                     {(openMenu
-                      ? getVisibleVehicleRowActions(
+                      ? getVehicleRowActions(
                           vehicleById[openMenu.vehicleId] ?? {
                             id: openMenu.vehicleId,
                             name: '',
@@ -1581,18 +2153,43 @@ export function VehicleListPanel({
                       : []
                     ).map((item) => {
                       const Icon = item.icon;
+                      const disabled = Boolean(item.unavailableReason);
                       return (
                         <button
                           key={item.id}
                           type="button"
+                          role="menuitem"
+                          disabled={disabled}
+                          title={item.unavailableReason ?? undefined}
                           onClick={() =>
                             handleMenuAction(item.id, openMenu!.vehicleId)
                           }
-                          className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 transition-colors text-left group"
+                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-colors text-left group ${
+                            disabled ? 'cursor-not-allowed' : 'hover:bg-[#F0F5FF]'
+                          }`}
                         >
-                          <Icon className="w-4 h-4 text-slate-500 group-hover:text-blue-600 transition-colors flex-shrink-0" />
-                          <span className="text-sm text-slate-700 group-hover:text-slate-900">
-                            {item.label}
+                          <span
+                            className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+                              disabled
+                                ? 'bg-[#F0F3F9] text-[#B8C3DA]'
+                                : 'bg-[#F0F3F9] text-[#0F1B3D] group-hover:bg-[#2F6BFF] group-hover:text-white'
+                            }`}
+                          >
+                            <Icon className="w-[18px] h-[18px]" />
+                          </span>
+                          <span className="flex flex-col min-w-0">
+                            <span
+                              className={`text-[13.5px] font-semibold ${
+                                disabled ? 'text-[#8A94A6]' : 'text-[#0F1B3D]'
+                              }`}
+                            >
+                              {item.label}
+                            </span>
+                            {disabled && (
+                              <span className="text-[11.5px] text-[#8A94A6]">
+                                {item.unavailableReason}
+                              </span>
+                            )}
                           </span>
                         </button>
                       );
@@ -1611,6 +2208,116 @@ export function VehicleListPanel({
           </div>
         </>
       )}
+
+      <Dialog open={!!routeDraft} onOpenChange={(open) => !open && setRouteDraft(null)}>
+        <DialogContent className="fiq-font max-w-[460px] rounded-[24px] border border-[#E3E9F4] shadow-[0_24px_60px_rgba(15,27,61,0.22)] [&>button:last-child]:text-[#5B6B8C] [&>button:last-child]:top-5 [&>button:last-child]:right-5 [&>button:last-child]:hover:bg-[#F0F3F9]">
+          {(() => {
+            const t = routeDraft ? trajectoryOf(routeDraft.vehicleId) : null;
+            const v = routeDraft ? vehicleById[routeDraft.vehicleId] : null;
+            const name = routeDraft?.name ?? '';
+            const empty = !name.trim();
+            return (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  confirmSaveRoute();
+                }}
+              >
+                {/* Header */}
+                <DialogHeader className="bg-white text-[#0F1B3D] px-6 pt-6 pb-0 pr-14 flex-row items-start gap-3.5 space-y-0 text-left">
+                  <span className="w-11 h-11 rounded-[14px] bg-[#EAF1FF] text-[#2F6BFF] flex items-center justify-center shrink-0">
+                    <BookmarkPlus className="w-5 h-5" />
+                  </span>
+                  <span className="flex flex-col gap-1 min-w-0">
+                    <DialogTitle className="text-[18px] font-extrabold leading-tight text-[#0F1B3D]">
+                      Enregistrer comme route
+                    </DialogTitle>
+                    <DialogDescription className="text-[13px] leading-snug text-[#5B6B8C]">
+                      Le trajet parcouru sera ajouté à vos routes et assigné à ce véhicule.
+                    </DialogDescription>
+                  </span>
+                </DialogHeader>
+
+                <div className="px-6 pt-5 pb-6 flex flex-col gap-4">
+                  {/* Trip summary */}
+                  {t && v && (
+                    <div className="rounded-2xl bg-[#F7F9FF] border border-[#E3E9F4] px-4 py-3">
+                      <p className="flex items-center gap-2 text-[13.5px] font-bold text-[#0F1B3D]">
+                        <RouteIcon className="w-4 h-4 text-[#2F6BFF] shrink-0" />
+                        <span className="truncate">
+                          {t.from} → {t.to}
+                        </span>
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-[#5B6B8C]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Car className="w-3.5 h-3.5" />
+                          <b className="font-bold text-[#0F1B3D]">{v.matricule || v.name}</b>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Ruler className="w-3.5 h-3.5" />
+                          <b className="font-bold text-[#0F1B3D]">{t.summary.distanceKm.toFixed(1).replace('.', ',')} km</b>
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Clock className="w-3.5 h-3.5" />
+                          <b className="font-bold text-[#0F1B3D]">{Math.round(t.summary.runMin)} min</b> de conduite
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Title field */}
+                  <label className="flex flex-col gap-1.5">
+                    <span className="text-[13px] font-bold text-[#0F1B3D]">Titre de la route</span>
+                    <input
+                      autoFocus
+                      value={name}
+                      onChange={(e) => setRouteDraft((d) => (d ? { ...d, name: e.target.value } : d))}
+                      onFocus={(e) => {
+                        const el = e.currentTarget;
+                        const end = el.value.length;
+                        el.setSelectionRange(end, end);
+                      }}
+                      maxLength={80}
+                      placeholder="Ex. Tournée Bizerte du matin"
+                      aria-invalid={empty}
+                      className={`h-11 px-3.5 rounded-xl bg-white border text-[14px] font-semibold text-[#0F1B3D] placeholder:text-[#B8C3DA] placeholder:font-medium outline-none transition-shadow selection:bg-[#DCE8FF] ${
+                        empty
+                          ? 'border-[#F0A9AC] focus:ring-4 focus:ring-[#E5484D]/10'
+                          : 'border-[#DCE3EF] focus:border-[#2F6BFF] focus:ring-4 focus:ring-[#2F6BFF]/10'
+                      }`}
+                    />
+                    <span className="flex justify-between text-[11.5px]">
+                      <span className={empty ? 'text-[#E5484D] font-semibold' : 'text-[#8A94A6]'}>
+                        {empty ? 'Le titre est obligatoire.' : 'Visible dans Géo › Routes et sur la carte.'}
+                      </span>
+                      <span className="text-[#8A94A6] tabular-nums">{name.length}/80</span>
+                    </span>
+                  </label>
+                </div>
+
+                {/* Footer */}
+                <div className="flex justify-end gap-2 px-6 py-4 bg-[#F7F9FF] border-t border-[#E3E9F4]">
+                  <button
+                    type="button"
+                    onClick={() => setRouteDraft(null)}
+                    className="h-10 px-4 rounded-xl text-[13.5px] font-bold text-[#5B6B8C] hover:bg-white hover:text-[#0F1B3D] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={empty}
+                    className="h-10 px-4 rounded-xl bg-[#2F6BFF] text-white text-[13.5px] font-bold inline-flex items-center gap-2 shadow-[0_6px_14px_rgba(47,107,255,0.28)] hover:bg-[#2459E0] disabled:opacity-40 disabled:shadow-none transition-colors"
+                  >
+                    <BookmarkPlus className="w-4 h-4" />
+                    Enregistrer
+                  </button>
+                </div>
+              </form>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={noEquipmentOpen} onOpenChange={setNoEquipmentOpen}>
         <DialogContent className="max-w-sm">
