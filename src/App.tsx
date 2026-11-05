@@ -535,6 +535,23 @@ function AppShell() {
     }
     return list;
   }, [suivieFilteredVehicleIds, statusFilter]);
+
+  /**
+   * Trip focus: while a trip is shown or replayed, only the selected vehicle
+   * stays on the map so the vehicle and its route are clearly visible.
+   */
+  const [showOthersInTrip, setShowOthersInTrip] = useState(false);
+  const tripFocus = !!selectedVehicleId && (!!tripReplay || !!trackingPath);
+  useEffect(() => {
+    if (!tripFocus) setShowOthersInTrip(false);
+  }, [tripFocus]);
+  const displayedVehicles = useMemo(
+    () =>
+      tripFocus && !showOthersInTrip
+        ? MOCK_VEHICLES.filter((v) => v.id === selectedVehicleId)
+        : mapVehicles,
+    [tripFocus, showOthersInTrip, selectedVehicleId, mapVehicles]
+  );
   // Monitoring Center starts collapsed so the map stays clear
   const [isMonitoringCollapsed, setIsMonitoringCollapsed] = useState(true);
   const criticalVehicleCount = useMemo(() => {
@@ -718,16 +735,25 @@ function AppShell() {
 
   /** Cross-module links offered by the vehicle card on the tracking map */
   const { setFitBoundsPoints } = mapOverlays;
+  /** Trip view needs the whole map: hide the vehicle list (restored when the card closes) */
+  const hideListForTrip = useCallback(() => {
+    if (!isVehicleListCollapsed) {
+      setIsVehicleListCollapsed(true);
+      setListHiddenByCard(true);
+    }
+  }, [isVehicleListCollapsed]);
   const vehicleCardActions = useMemo<VehicleCardActions>(
     () => ({
       // Trajets tab: draw the chosen trip and frame it beside the card
       onShowTrip: (_vehicle, trip) => {
+        hideListForTrip();
         setTripReplay(null);
         setTrackingPath(trip.path);
         setFitBoundsPoints(trip.path);
       },
       // "Rejouer sur la carte": animate the vehicle along the trip
       onReplayTrip: (vehicle, trip) => {
+        hideListForTrip();
         setTrackingPath(null);
         setTripReplay({
           key: Date.now(),
@@ -756,7 +782,7 @@ function AppShell() {
         setActiveSection('alert_history');
       },
     }),
-    [handleFocusVehicleOnMap, handleShowTrajectoryTrack, handleOpenDetailedReport, openParc, setFitBoundsPoints]
+    [handleFocusVehicleOnMap, handleShowTrajectoryTrack, handleOpenDetailedReport, openParc, setFitBoundsPoints, hideListForTrip]
   );
 
   if (phase === 'welcome') {
@@ -935,10 +961,27 @@ function AppShell() {
 
         // Suivie View - Original Layout WITHOUT Filter Bar at top
         <>
+            {/* Trip focus banner: other vehicles hidden while a trip is shown */}
+            {tripFocus && (
+              <div className="trip-replay-panel fiq-font absolute top-4 left-1/2 -translate-x-1/2 lg:left-[calc(50%+220px)] z-40 flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-full bg-white/95 backdrop-blur border border-[#E3E9F4] shadow-[0_8px_20px_rgba(15,27,61,0.14)] text-[13px] text-[#0F1B3D]">
+                <span className="w-2 h-2 rounded-full bg-[#2F6BFF]" />
+                <span className="font-semibold whitespace-nowrap">
+                  {showOthersInTrip ? 'Tous les véhicules affichés' : 'Mode trajet · autres véhicules masqués'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowOthersInTrip((v) => !v)}
+                  className="h-7 px-3 rounded-full bg-[#EAF1FF] text-[#2F6BFF] font-bold whitespace-nowrap hover:bg-[#DCE8FF]"
+                >
+                  {showOthersInTrip ? 'Masquer' : 'Afficher'}
+                </button>
+              </div>
+            )}
+
             {/* Full Screen Map Background */}
             <div className="absolute inset-0 z-0">
               <MapView
-              vehicles={mapVehicles}
+              vehicles={displayedVehicles}
               selectedVehicleId={selectedVehicleId}
               onSelectVehicle={handleMapVehicleSelect}
               onDeselectVehicle={handleCloseVehicleCard}

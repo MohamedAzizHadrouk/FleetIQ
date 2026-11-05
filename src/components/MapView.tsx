@@ -945,11 +945,20 @@ export function MapView({
   ensureAlertStore(fleetVehicles ?? vehicles);
   const criticalIds = getCriticalAlertVehicleIds();
 
+  const replayActive = !!tripReplay;
   useEffect(() => {
     if (!selectedVehicleId || !onDeselectVehicle) return;
+    // A click that ends a map drag (pan with the hand) must not close the card
+    let down: { x: number; y: number } | null = null;
+    const onDown = (event: PointerEvent) => {
+      down = { x: event.clientX, y: event.clientY };
+    };
     const onClick = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Element)) return;
+      const dragged = down && Math.hypot(event.clientX - down.x, event.clientY - down.y) > 5;
+      down = null;
+      if (dragged) return;
       if (
         target.closest(
           '.leaflet-vehicle-info-popup, .custom-marker, .trip-replay-panel, [data-vehicle-row]'
@@ -957,11 +966,18 @@ export function MapView({
       ) {
         return;
       }
+      // During a trip replay the map stays free to explore: only the card / replay
+      // close buttons end it, not a click on the map.
+      if (replayActive && target.closest('.leaflet-container')) return;
       onDeselectVehicle();
     };
+    document.addEventListener('pointerdown', onDown, true);
     document.addEventListener('click', onClick, true);
-    return () => document.removeEventListener('click', onClick, true);
-  }, [selectedVehicleId, onDeselectVehicle]);
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true);
+      document.removeEventListener('click', onClick, true);
+    };
+  }, [selectedVehicleId, onDeselectVehicle, replayActive]);
   const tile = BASEMAP_TILES[basemap];
   const visibleLocations = locations.filter(
     (l) => l.visible && l.id !== editingOverlayId

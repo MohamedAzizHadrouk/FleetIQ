@@ -91,6 +91,16 @@ export function TripReplayLayer({ replay, onClose }: { replay: TripReplayRequest
     };
   }, [map, timeline, replay.key, replay.vehicle.iconType]);
 
+  // Panning by hand takes over the camera: stop following (the ⊕ button resumes it).
+  // The simulation itself keeps running.
+  useEffect(() => {
+    const stopFollow = () => setFollow(false);
+    map.on('dragstart', stopFollow);
+    return () => {
+      map.off('dragstart', stopFollow);
+    };
+  }, [map]);
+
   // Draw the current state.
   const state = replayAt(timeline, minutes);
   useEffect(() => {
@@ -124,7 +134,8 @@ export function TripReplayLayer({ replay, onClose }: { replay: TripReplayRequest
     let last = performance.now();
     const perSecond = (timeline.totalMin / BASE_SECONDS) * speed;
     const tick = (now: number) => {
-      const dt = Math.min(0.1, (now - last) / 1000);
+      // Real elapsed time (capped so a long background pause does not jump to the end)
+      const dt = Math.min(0.5, (now - last) / 1000);
       last = now;
       const next = Math.min(timeline.totalMin, minutesRef.current + dt * perSecond);
       minutesRef.current = next;
@@ -159,9 +170,8 @@ export function TripReplayLayer({ replay, onClose }: { replay: TripReplayRequest
   };
 
   const container = map.getContainer().getBoundingClientRect();
-  const inset = cardCoveredWidth(map);
-  const left = container.left + inset + (inset ? 0 : 16);
-  const width = Math.min(620, container.width - inset - 16 - 80);
+  // Centred at the bottom of the screen
+  const width = Math.min(620, window.innerWidth - 32);
   const remaining = Math.max(0, Math.round(timeline.totalMin - minutes));
   const realtimeFactor = Math.round(((timeline.totalMin * 60) / BASE_SECONDS) * speed);
 
@@ -169,7 +179,7 @@ export function TripReplayLayer({ replay, onClose }: { replay: TripReplayRequest
     <section
       aria-label="Replay du trajet"
       className="trip-replay-panel fiq-font fixed z-[1090] rounded-[20px] bg-white text-[#0F1B3D] border border-[#E3E9F4] shadow-[0_24px_48px_rgba(15,27,61,0.22)] px-4 pt-3 pb-3.5"
-      style={{ left, bottom: window.innerHeight - container.bottom + 16, width: Math.max(320, width) }}
+      style={{ left: '50%', transform: 'translateX(-50%)', bottom: window.innerHeight - container.bottom + 16, width }}
       onMouseDown={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
       onWheel={(e) => e.stopPropagation()}
