@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maquette Dépenses générales</title>
+<style>
+:root{
+  --bg:#ffffff; --page:#f6f8fb; --card:#ffffff; --text:#0f172a; --muted:#64748b; --border:#e2e8f0; --soft:#f1f5f9;
+  --blue:#2563eb; --blue-50:#eff6ff; --navy:#1e293b; --navy-2:#0f172a; --green:#16a34a; --red:#dc2626; --amber:#b45309;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--page);color:var(--text);font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+button{font:inherit;cursor:pointer}
+/* top bar */
+.top{height:60px;background:linear-gradient(90deg,#2563eb,#3b82f6);display:flex;align-items:center;gap:8px;padding:0 16px;color:#fff}
+.logo{background:#fff;color:#1d4ed8;border-radius:24px;padding:6px 16px;font-weight:800;letter-spacing:.02em}
+.logo small{display:block;font-weight:500;color:#64748b;font-size:9px;letter-spacing:0}
+.topnav{display:flex;gap:4px;margin-left:24px}
+.topnav span{padding:7px 14px;border-radius:8px;opacity:.85;font-weight:600;font-size:13.5px}
+.topnav span.on{background:rgba(255,255,255,.2);opacity:1}
+.top .right{margin-left:auto;display:flex;gap:8px}
+.top .right span{background:rgba(255,255,255,.18);padding:7px 14px;border-radius:8px;font-weight:600;font-size:13px}
+/* layout */
+.shell{display:flex;min-height:calc(100vh - 60px)}
+aside{width:240px;flex:none;background:var(--navy);color:#cbd5e1;padding:14px 0}
+aside h4{color:#fff;margin:4px 16px 14px;font-size:14px;letter-spacing:.04em}
+aside .sec{font-size:11px;font-weight:700;letter-spacing:.06em;color:#94a3b8;padding:14px 16px 6px}
+aside .it{padding:8px 16px 8px 26px;font-size:13.5px}
+aside .it.on{background:var(--blue);color:#fff;font-weight:600}
+main{flex:1;min-width:0;padding:20px 24px 60px}
+/* tabs */
+.doc-tabs{display:flex;gap:6px;margin-bottom:16px}
+.doc-tabs button{border:1px solid var(--border);background:var(--card);padding:8px 16px;border-radius:8px;font-weight:600;color:var(--muted)}
+.doc-tabs button.on{background:var(--navy);color:#fff;border-color:var(--navy)}
+.head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+h1{font-size:22px;margin:0} .sub{color:var(--muted);margin:2px 0 0}
+.btn{border:1px solid var(--border);background:var(--card);padding:8px 14px;border-radius:8px;font-weight:600}
+.btn.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px}
+.card h3{margin:0 0 12px;font-size:15px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.card h3 small{font-weight:500;color:var(--muted);font-size:12px}
+/* filters */
+.filters{display:grid;gap:14px}
+.frow{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-end}
+.lbl{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:.04em}
+.seg{display:inline-flex;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--soft)}
+.seg button{border:0;background:transparent;padding:8px 14px;font-weight:600;color:var(--muted);display:flex;gap:6px;align-items:center}
+.seg button.on{background:var(--card);color:var(--blue);box-shadow:0 0 0 1px var(--border)}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--border);background:var(--card);border-radius:999px;padding:5px 12px;font-size:13px;font-weight:500}
+.chip.on{background:var(--blue-50);border-color:#93c5fd;color:#1d4ed8}
+.chip.off{opacity:.45;cursor:not-allowed;text-decoration:line-through}
+.chip .sw{display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:6px;vertical-align:0}
+.dd{position:relative}
+.dd-btn{min-width:260px;text-align:left;border:1px solid var(--border);background:var(--card);border-radius:8px;padding:8px 12px}
+.dd-menu{position:absolute;z-index:20;top:calc(100% + 4px);left:0;min-width:260px;background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:0 10px 30px rgba(15,23,42,.12);padding:6px;display:none}
+.dd-menu.open{display:block}
+.dd-menu label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:6px}
+.dd-menu label:hover{background:var(--soft)}
+.dd-menu .all{color:var(--blue);font-weight:600;padding:6px 8px;border-bottom:1px solid var(--border);margin-bottom:4px;cursor:pointer}
+input[type=date]{border:1px solid var(--border);border-radius:8px;padding:7px 10px;font:inherit}
+.toggle{display:flex;gap:8px;align-items:center;font-weight:500}
+.hint{font-size:12.5px;color:var(--muted)}
+/* kpis */
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px;margin:14px 0}
+.kpi{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.kpi .k{font-size:12.5px;color:var(--muted);font-weight:600}
+.kpi .v{font-size:24px;font-weight:700;font-variant-numeric:tabular-nums;margin-top:2px}
+.kpi .v small{font-size:13px;color:var(--muted);font-weight:600}
+.kpi .d{font-size:12.5px;margin-top:2px}
+.up{color:var(--red)} .down{color:var(--green)}
+.bar-pay{height:6px;border-radius:4px;background:#fee2e2;overflow:hidden;margin-top:8px}
+.bar-pay i{display:block;height:100%;background:var(--green)}
+/* grid */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.g2b{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media (max-width:1000px){.g2,.g2b{grid-template-columns:1fr} aside{display:none} .topnav{display:none}}
+/* insights */
+.insights{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.ins{border-radius:10px;padding:10px 12px;border:1px solid var(--border);background:var(--soft);font-size:13.5px}
+.ins b{display:block;font-size:12px;text-transform:uppercase;letter-spacing:.04em;margin-bottom:2px}
+.ins.warn{background:#fff7ed;border-color:#fed7aa} .ins.warn b{color:var(--amber)}
+.ins.info{background:var(--blue-50);border-color:#bfdbfe} .ins.info b{color:#1d4ed8}
+.ins.ok{background:#f0fdf4;border-color:#bbf7d0} .ins.ok b{color:var(--green)}
+/* charts */
+svg text{font-family:inherit}
+.legend{display:flex;flex-wrap:wrap;gap:10px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.rank{display:grid;gap:8px}
+.rank .r{display:grid;grid-template-columns:130px 1fr 90px;gap:10px;align-items:center;font-size:13px;cursor:pointer}
+.rank .r:hover .nm{color:var(--blue)}
+.rank .track{height:14px;background:var(--soft);border-radius:4px;position:relative}
+.rank .fill{height:100%;border-radius:4px;background:var(--blue)}
+.rank .avg{position:absolute;top:-3px;bottom:-3px;border-left:2px dashed #94a3b8}
+.rank .val{text-align:right;font-variant-numeric:tabular-nums;font-weight:600}
+.fc{display:grid;gap:8px}
+.fc .f{display:flex;justify-content:space-between;gap:10px;border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:13px}
+.fc .f span{color:var(--muted);font-size:12px;display:block}
+.fc .f b{white-space:nowrap}
+/* heatmap table */
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 10px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+th{font-size:11.5px;text-transform:uppercase;color:var(--muted);font-weight:700;background:var(--soft)}
+th:first-child,td:first-child{text-align:left}
+td.cell{cursor:pointer;position:relative}
+td.cell:hover{outline:2px solid var(--blue);outline-offset:-2px}
+td.na{color:#cbd5e1;text-align:center;cursor:default}
+tr.tot td{font-weight:700;background:var(--soft)}
+td.rt{font-weight:700}
+td .pct{display:block;font-size:11px;color:var(--muted);font-weight:500}
+/* clickable totals: row total = sous-rubrique for all entities, column total = entity for all sous-rubriques */
+.tlink{cursor:pointer;color:var(--blue);text-decoration:underline dotted;text-underline-offset:3px}
+.tlink:hover{background:var(--blue-50);outline:2px solid var(--blue);outline-offset:-2px}
+/* drawer */
+.drawer-bg{position:fixed;inset:0;background:rgba(15,23,42,.35);display:none;z-index:40}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(620px,100%);background:var(--card);z-index:50;transform:translateX(100%);transition:transform .22s ease;display:flex;flex-direction:column}
+.drawer.open{transform:none} .drawer-bg.open{display:block}
+.drawer header{padding:16px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px}
+.drawer header h3{margin:0;font-size:16px}
+.drawer .body{padding:14px 18px;overflow:auto}
+.src{display:inline-block;background:var(--soft);border:1px solid var(--border);border-radius:6px;padding:2px 8px;font-size:12px;font-family:ui-monospace,Consolas,monospace}
+/* data origin tab */
+.orig-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px}
+.actor{border:1px solid var(--border);border-radius:12px;padding:14px;background:var(--card)}
+.actor h4{margin:0 0 4px;font-size:15px}
+.actor .from{font-size:12.5px;color:var(--muted);margin-bottom:8px}
+.actor ul{margin:0;padding-left:18px;font-size:13px}
+.mx td,.mx th{text-align:center;white-space:normal}
+.mx td:first-child,.mx th:first-child{text-align:left;min-width:170px}
+.y{color:var(--green);font-weight:700} .i{color:var(--amber);font-weight:700} .n{color:#cbd5e1}
+.mx small{display:block;color:var(--muted);font-size:11px;font-family:ui-monospace,Consolas,monospace}
+.note{background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:10px 14px;margin:12px 0;font-size:13.5px}
+.new{background:#16a34a;color:#fff;border-radius:4px;font-size:10px;font-weight:700;padding:1px 5px;margin-left:6px;vertical-align:1px}
+.hidden{display:none}
+.fuelt{border-radius:999px;padding:0 6px;font-size:10.5px;font-weight:700}
+.fuelt.d{background:#e0f2fe;color:#075985}
+.fuelt.e{background:#fef3c7;color:#92400e}
+.ftbl td:nth-child(3){white-space:nowrap}
+.mchips{grid-column:1/-1;margin-bottom:4px}
+.ptag{display:inline-block;border-radius:999px;padding:0 7px;font-size:11px;font-weight:600;white-space:nowrap}
+.ptag.km{background:#eff6ff;color:#1d4ed8}
+.ptag.h{background:#fef3c7;color:#92400e}
+.kmt td:nth-child(4){white-space:nowrap}
+.spe-grid .card.wide{grid-column:1/-1}
+.pie-wrap{display:flex;align-items:center;justify-content:center;gap:28px;flex-wrap:wrap}
+.pie{width:170px;height:170px;flex:none}
+.pie circle:hover{opacity:.8}
+.pie-leg{flex:none;display:grid;gap:6px}
+.pie-leg .pl{display:grid;grid-template-columns:12px 90px auto;column-gap:10px;align-items:center;font-size:13px;cursor:pointer;padding:4px 6px;border-radius:8px}
+.pie-leg .pl:hover{background:var(--soft)}
+.pie-leg .pl i{width:12px;height:12px;border-radius:3px}
+.pie-leg .pl b{font-variant-numeric:tabular-nums}
+.pie-leg .pl .pn{font-weight:600;color:var(--text)}
+.pie-leg .pl small{grid-column:2/-1;color:var(--muted);font-size:11.5px}
+.track.fuelb{position:relative;overflow:visible;background:var(--soft)}
+.fuelb span{position:absolute;top:0;bottom:0;border-radius:4px}
+.fuelb .band{background:#bbf7d0;top:-3px;bottom:-3px}
+.fuelb .real{left:0;background:#0ea5e9;top:3px;bottom:3px}
+.fuelb .excess{background:#dc2626;top:3px;bottom:3px;border-radius:0 4px 4px 0}
+.fuelb .mark{width:0;border-left:2px solid #334155;top:-4px;bottom:-4px;border-radius:0}
+.dh{margin:14px 0 6px;font-size:14px}
+.mtbl .veh .tx b{white-space:nowrap}
+.mtbl td{vertical-align:middle}
+.mtbl:not(.mplan) td:nth-child(2),.mtbl:not(.mplan) th:nth-child(2),.mtbl:not(.mplan) td:nth-child(3),.mtbl:not(.mplan) th:nth-child(3){text-align:left}
+.mplan td:nth-child(2),.mplan th:nth-child(2){text-align:left;white-space:normal}
+.dh small{font-weight:500;color:var(--muted);font-size:12px;margin-left:6px}
+.kpi.click{cursor:pointer;transition:border-color .15s,box-shadow .15s}
+.kpi.click:hover{border-color:#93c5fd;box-shadow:0 0 0 3px var(--blue-50)}
+.kpi .more{display:block;margin-top:4px;color:var(--blue);font-weight:600;font-size:12px}
+#speUnpl .r{cursor:pointer}
+#speUnpl .r:hover .nm{color:var(--blue)}
+#speFuel .r{cursor:pointer}
+#speFuel .r:hover .nm{color:var(--blue)}
+.fz{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 12px}
+.fz div{border:1px solid var(--border);border-radius:10px;padding:8px 10px}
+.fz span{display:block;font-size:11.5px;color:var(--muted)}
+.fz b{font-size:16px;font-variant-numeric:tabular-nums}
+.fz .bad b{color:var(--red)}
+.fz .fzn{display:block;font-size:10.5px;color:var(--muted);margin-top:2px}
+.fx-line{background:#f8faff;border:1px solid #c7d2fe;border-radius:10px;padding:8px 12px;font:12px/1.6 ui-monospace,Consolas,monospace;margin-bottom:12px}
+.fueltbl{font-size:12px}
+.fueltbl th,.fueltbl td{padding:7px 6px}
+.fueltbl th{font-size:10.5px}
+.fueltbl td:first-child{white-space:normal}
+.fueltbl td small{display:block;font-weight:500}
+.fueltbl td.over{color:var(--red);font-weight:700}
+.fueltbl td.ok{color:var(--green)}
+.sec-title{font-size:16px;font-weight:700;margin:4px 0 10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sec-title small{font-weight:500;color:var(--muted);font-size:12px}
+.spe-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+@media (max-width:1000px){.spe-grid{grid-template-columns:1fr}}
+.sx .r{grid-template-columns:110px 1fr 190px;cursor:default}
+.sx .val small{color:var(--muted);font-weight:500}
+.depf{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.depf .chip{padding:3px 10px;font-size:12px}
+.track.stack{display:flex;overflow:hidden}
+.track.stack i{display:block;height:100%;border-right:1px solid #fff}
+.track.stack i:last-child{border-right:0}
+.dv tr.vrow{cursor:pointer} .dv tr.vrow:hover td{background:var(--soft)}
+.dv tr.orow td{color:var(--muted);background:#fafafa}
+.dv .chev{color:var(--muted);font-size:18px}
+.dv .mini{display:inline-block;width:48px;height:6px;background:var(--soft);border-radius:3px;vertical-align:middle;margin-right:6px;overflow:hidden}
+.dv .mini i{display:block;height:100%;background:#0d9488}
+.back{margin-bottom:12px;padding:6px 12px;font-size:13px}
+.veh .hi{font-size:10px;font-weight:700;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;border-radius:4px;padding:0 4px;margin-left:4px;white-space:nowrap}
+.veh{display:flex;align-items:center;gap:8px;min-width:0}
+.veh .ico{width:28px;height:28px;border-radius:50%;background:var(--soft);border:1px solid var(--border);display:grid;place-items:center;font-size:15px;flex:none}
+.veh .tx{display:flex;flex-direction:column;line-height:1.2;min-width:0}
+.veh .tx small{color:var(--muted);font-size:11.5px}
+.spec{display:inline-block;border-radius:999px;padding:1px 9px;font-size:12px;font-weight:600;color:#fff}
+.spec-sum{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin:0 0 12px}
+.spec-sum h4{margin:0 0 8px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.spec-sum .t{display:grid;grid-template-columns:90px 1fr 130px;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
+.spec-sum .t .bar{height:8px;background:var(--soft);border-radius:4px;overflow:hidden}
+.spec-sum .t .bar i{display:block;height:100%}
+.spec-sum .t .v{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.sr-row{cursor:default}
+.sr-row.exp{cursor:pointer}
+.sr-row.exp:hover .nm{color:var(--blue)}
+.sr-row .nm .car{display:inline-block;width:12px;color:var(--muted);font-size:11px;transition:transform .15s}
+.sr-row.open .nm .car{transform:rotate(90deg)}
+.sr-types{margin:2px 0 10px 12px;padding:10px 12px;border-left:3px solid var(--c);background:var(--soft);border-radius:0 8px 8px 0}
+.sr-types .t{display:grid;grid-template-columns:minmax(0,1fr) 80px 128px;gap:10px;align-items:center;font-size:12.5px;padding:3px 0}
+.sr-types .t .bar{height:8px;background:#e2e8f0;border-radius:4px;overflow:hidden}
+.sr-types .t .bar i{display:block;height:100%;background:var(--c);opacity:.55}
+.sr-types .t.best .bar i{opacity:1}
+.sr-types .t .v{white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+.sr-types .t.best{font-weight:700}
+.sr-types .t.best .lab::after{white-space:nowrap;content:'le plus élevé';margin-left:6px;font-size:10px;font-weight:700;color:#b45309;background:#fff7ed;border:1px solid #fed7aa;border-radius:4px;padding:0 4px}
+.sr-types .src-l{font-size:11.5px;color:var(--muted);margin-top:6px}
+
+</style>
+</head>
+<body>
+<div class="top">
+  <div class="logo">TUNAV<small>GPS trackers, IT experts</small></div>
+  <div class="topnav"><span>Dashboard</span><span>Suivi</span><span class="on">Parc</span><span>Alertes</span><span>Rapports</span><span>Surveillance</span></div>
+  <div class="right"><span>Admin</span><span>ADMINISTRATION</span></div>
+</div>
+<div class="shell">
+<aside>
+  <h4>GESTION DU PARC</h4>
+  <div class="sec">EXPLOITATION DU PARC</div>
+  <div class="it">Gestion des clients</div><div class="it">Gestion de chauffeurs</div><div class="it">Gestion de véhicules</div><div class="it">Emprunt et location</div>
+  <div class="sec">SUIVI OPÉRATIONNEL</div>
+  <div class="it">Gestion de maintenance</div><div class="it">Gestion des pneus</div><div class="it">Gestion des sinistres</div><div class="it">Gestion des visites/missions</div><div class="it">Gestion des coupons</div><div class="it">Gestion de documents</div>
+  <div class="sec">STOCKS ACHATS</div>
+  <div class="it">Gestion des fournisseurs</div><div class="it">Gestion des articles et du stock</div><div class="it">Gestion Pièces commerciales</div>
+  <div class="sec">STATISTIQUE</div>
+  <div class="it on">Dépenses générales</div>
+</aside>
+
+<main>
+  <div class="doc-tabs">
+    <button class="on" data-tab="mock">Maquette de l'écran</button>
+    <button data-tab="orig">Origine des données</button>
+  </div>
+
+  <!-- ================= MOCKUP ================= -->
+  <section id="tab-mock">
+    <div class="head">
+      <div><h1>Dépenses générales</h1><p class="sub">Toutes les dépenses du parc, par acteur et par sous-rubrique</p></div>
+      <div style="display:flex;gap:8px"><button class="btn">⤓ Excel</button><button class="btn">⤓ PDF</button></div>
+    </div>
+
+    <div class="card filters">
+      <div class="frow">
+        <div>
+          <div class="lbl">Période <span class="new">NOUVEAU</span></div>
+          <div class="chips" id="periods"></div>
+        </div>
+        <div><div class="lbl">Du</div><input type="date" id="d1" value="2026-01-01"></div>
+        <div><div class="lbl">Au</div><input type="date" id="d2" value="2026-09-23"></div>
+        <label class="toggle"><input type="checkbox" id="cmp" checked> Comparer à la période précédente <span class="new">NOUVEAU</span></label>
+      </div>
+      <div class="frow">
+        <div>
+          <div class="lbl">Analyser par</div>
+          <div class="seg" id="types"></div>
+        </div>
+        <div class="dd">
+          <div class="lbl" id="entLbl">Véhicules</div>
+          <button class="dd-btn" id="ddBtn"></button>
+          <div class="dd-menu" id="ddMenu"></div>
+        </div>
+      </div>
+      <div>
+        <div class="lbl">Sous-rubriques <span class="new">NOUVEAU</span></div>
+        <div class="chips" id="subs"></div>
+        <div class="hint" id="subHint" style="margin-top:6px"></div>
+      </div>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3><span>À retenir <span class="new">NOUVEAU</span></span> <small>généré automatiquement sur la période</small></h3>
+      <div class="insights" id="insights"></div>
+    </div>
+
+    <div class="g2b hidden" id="depRow">
+      <div class="card" id="perCarCard"><h3><span>Coût par véhicule <span class="new">NOUVEAU</span></span> <small>ligne pointillée = moyenne du parc</small></h3><div class="rank" id="perCar"></div></div>
+    </div>
+
+    <div class="g2" id="g2">
+      <div class="card"><h3><span>Évolution mensuelle <span class="new">NOUVEAU</span></span> <small id="evoSub"></small></h3><div id="evo"></div><div class="legend" id="evoLeg"></div></div>
+      <div class="card"><h3>Par sous-rubrique <small>▶ = détail par type</small></h3><div id="bySub"></div></div>
+    </div>
+
+    <div id="speBox" class="hidden">
+      <div class="sec-title"><span id="speSecT">Analyse des dépenses par spécialité</span> <span class="new">NOUVEAU</span><small id="speSecS">chaque montant vient des dépenses de la période, rattachées via Car.SpecialityId</small></div>
+      <div class="spe-grid">
+        <div class="card"><h3><span>Coût du carburant par km</span> <small>carburant ÷ km parcourus · cliquez pour le détail</small></h3><div class="pie-wrap" id="speKm"></div></div>
+        <div class="card"><h3><span>Entretiens : effectués et à venir</span> <small>cliquez pour le détail</small></h3><div class="rank sx" id="speUnpl"></div><div class="legend"><span><i style="background:#2563eb"></i>Coût des entretiens effectués</span><span><i style="background:#dc2626"></i>À faire bientôt (seuil « Me rappeler avant » atteint)</span></div></div>
+        <div class="card wide"><h3><span>Surconsommation carburant</span> <small>consommation réelle vs estimation (L/100 km) · cliquez pour le détail</small></h3><div class="rank sx" id="speFuel"></div><div class="legend"><span><i style="background:#334155"></i>Estimation carburant (repère)</span><span><i style="background:#0ea5e9"></i>Consommation réelle</span><span><i style="background:#dc2626"></i>Surconsommation</span></div></div>
+      </div>
+    </div>
+
+    <div class="card" id="rankCard" style="margin-bottom:14px">
+      <h3><span><span id="rankTitle">Classement</span> <span class="new">NOUVEAU</span></span> <small>ligne pointillée = moyenne</small></h3><div class="rank" id="rank"></div>
+    </div>
+
+    <div class="card">
+      <h3><span>Détail sous-rubrique × <span id="tblType">véhicule</span></span> <small>cliquez un montant ou un total pour voir le détail</small></h3>
+      <div class="scroll"><table id="tbl"></table></div>
+    </div>
+  </section>
+
+  <!-- ================= DATA ORIGIN ================= -->
+  <section id="tab-orig" class="hidden">
+    <div class="head"><div><h1>Origine des données</h1><p class="sub">D'où vient chaque acteur et chaque montant dans Gestion du parc</p></div></div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Existant dans l'application vs nouveau dans la maquette</h3>
+      <div class="scroll"><table class="mx" id="exist"></table></div>
+      <div class="note">Le code Angular local (<code>general-expenses</code>) n'a que 5 sous-rubriques véhicule (maintenance, coupons, tires, accidents, documents) alors que votre capture en montre 7 (+ Location/Emprunt, Factures d'achat) : la version locale du frontend n'est pas à jour par rapport à l'application en ligne.</div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Les 5 acteurs du filtre « Type »</h3>
+      <div class="orig-grid" id="actors"></div>
+    </div>
+
+    <div class="card" style="margin-bottom:14px">
+      <h3>Les sous-rubriques : d'où vient le montant</h3>
+      <div class="scroll"><table class="mx" id="subsrc"></table></div>
+    </div>
+
+    <div class="card">
+      <h3>Quelle sous-rubrique pour quel acteur ? <small><span class="y">●</span> lien direct · <span class="i">◐</span> via le véhicule · <span class="n">—</span> pas de lien</small></h3>
+      <div class="scroll"><table class="mx" id="matrix"></table></div>
+      <div class="note"><b>À vérifier dans la vraie base :</b> l'écran actuel affiche Documents par véhicule, mais dans le modèle ChartDB <code>Documents</code>/<code>LogDocuments</code> n'ont pas de <code>CarId</code>. Le lien existe donc probablement en base mais n'est pas dans le schéma. De même, « Sinistres » est la plus grosse sous-rubrique (33 635 DT) : il faut confirmer quel champ est sommé (<code>EstimatedIndemnisation</code> est une indemnité de l'assureur, pas un coût).</div>
+    </div>
+  </section>
+</main>
+</div>
+
+<div class="drawer-bg" id="dbg"></div>
+<div class="drawer" id="drawer">
+  <header><div><h3 id="dTitle"></h3><div class="hint" id="dSub"></div></div><button class="btn" id="dClose">Fermer</button></header>
+  <div class="body" id="dBody"></div>
+</div>
+
+<script>
+/* ---------- reference data ---------- */
+const SUBS = {
+  maint:{n:'Maintenance',c:'#2563eb',src:'CarRepairHistory',amt:'TotalCost / PaidCost',date:'CompletedAt',menu:'Gestion de maintenance'},
+  fuel:{n:'Carburant/Coupons',c:'#0ea5e9',src:'CardCoupon + CardAssignment',amt:'TotalPrice / AssignedAmount',date:'DateGMT',menu:'Gestion des coupons'},
+  tire:{n:'Pneus',c:'#14b8a6',src:'Tire + TireLog',amt:'Cost + OperationCost',date:'PurchasedDate / OperationDateGmt',menu:'Gestion des pneus'},
+  rent:{n:'Location/Emprunt',c:'#f59e0b',src:'CarRental + CarRentalInstallment',amt:'AmountDue (IsPaid)',date:'DueDate',menu:'Emprunt et location'},
+  docs:{n:'Documents',c:'#8b5cf6',src:'Documents + LogDocuments',amt:'Cost',date:'PaymentDate',menu:'Gestion de documents'},
+  acc:{n:'Sinistres',c:'#ef4444',src:'CarAccident',amt:'EstimatedIndemnisation (à confirmer)',date:'AccidentDate',menu:'Gestion des sinistres'},
+  miss:{n:'Frais de mission',c:'#64748b',src:'Mission',amt:'OtherExpenses',date:'ActualStart',menu:'Gestion des visites/missions',isNew:true},
+  buy:{n:"Factures d'achat",c:'#22c55e',src:'CommercialDocument + DocumentArticle + Payment',amt:'Qté × PU × (1−remise) × (1+TVA)',date:'OperationDate',menu:'Gestion Pièces commerciales'},
+  cons:{n:'Consommation stock',c:'#a16207',src:'StockMovment (sorties)',amt:'Quantity × Price',date:'MovmentDate',menu:'Gestion des articles et du stock',isNew:true},
+};
+// link level per actor: 'y' direct, 'i' via vehicle
+const TYPES = {
+  car:{n:'Véhicule',pl:'Véhicules',ic:'🚚',from:'Gestion de véhicules',table:'Car',key:'Matricule',
+       ents:['8125 TU 226','8126 TU 226','8127 TU 226','Tepee FM4200','8312 TU 193','7710 TU 201'],
+       subs:{maint:'y',fuel:'y',tire:'y',rent:'y',docs:'y',acc:'y',miss:'y'},
+       how:{maint:'CarRepairHistory.CarId',fuel:'CardAssignment.CarId',tire:'TireLog.Car / Tire.CurrentInstalledCar',rent:'CarRental.CarId',docs:'lien à confirmer (pas de CarId dans le modèle)',acc:'CarAccident.CarId',miss:'Mission.CarId'},
+       extra:['Coût / km (kilométrage des missions et locations)','Coût par modèle / marque (Car.ModelId → CarModel → CarBrand)']},
+  drv:{isNew:true,n:'Chauffeur',pl:'Chauffeurs',ic:'👤',from:'Gestion de chauffeurs',table:'Driver',key:'FirstName + LastName',
+       ents:['Ahmed Ben Salah','Sami Trabelsi','Mouna Gharbi','Karim Jlassi','Walid Hammami'],
+       subs:{fuel:'y',acc:'y',miss:'y'},
+       how:{fuel:'CardAssignment.DriverId',acc:'CarAccident.DriverId',miss:'Mission.DriverId'},
+       extra:['Nombre de sinistres par chauffeur','Carburant par chauffeur vs km parcourus']},
+  dep:{n:'Département',pl:'Départements',ic:'🏢',from:'Organisation (Department)',table:'Department',key:'Name',
+       ents:['Transport','Logistique','Commercial','Direction','Technique'],
+       subs:{fuel:'y',acc:'y',buy:'y',cons:'y',maint:'i',tire:'i',rent:'i',docs:'i',miss:'i'},
+       how:{fuel:'CardCoupon.DepartmentId',acc:'CarAccident.DepartmentId',buy:'Article.Department',cons:'Article.Department',maint:'via Car.DepartmentId',tire:'via Car.DepartmentId',rent:'via Car.DepartmentId',docs:'via véhicule (à confirmer)',miss:'via Car.DepartmentId'},
+       extra:['Arborescence : ParentDepartmentId permet de cumuler les sous-départements']},
+  spe:{isNew:true,n:'Spécialité',pl:'Spécialités',ic:'🏷️',from:'Organisation (Speciality)',table:'Speciality',key:'Name',
+       ents:['Livraison','Transport','Frigo','Benne'],
+       subs:{maint:'i',fuel:'i',tire:'i',rent:'i',docs:'i',acc:'i',miss:'i'},
+       how:{maint:'CarRepairHistory.CarId → Car.SpecialityId',fuel:'CardAssignment.CarId → Car.SpecialityId',tire:'TireLog.Car → Car.SpecialityId',rent:'CarRental.CarId → Car.SpecialityId',docs:'via véhicule (à confirmer)',acc:'CarAccident.CarId → Car.SpecialityId',miss:'Mission.CarId → Car.SpecialityId'},
+       extra:['Aucune table ne pointe directement vers Speciality : tout passe par le véhicule','Car.SpecialityId n’a pas de relation déclarée dans le modèle']},
+};
+const PERIODS = ['Ce mois','Trimestre','Année 2026','Personnalisée'];
+const MONTHS = ['Jan','Fév','Mar','Avr','Mai','Juin','Juil','Août','Sep'];
+
+/* ---------- deterministic mock data ---------- */
+function rng(seed){let s=0;for(const ch of seed)s=(s*31+ch.charCodeAt(0))>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296}}
+const BASE = {maint:1900,fuel:2600,tire:1700,rent:1600,docs:2400,acc:6700,miss:450,buy:2200,cons:1500};
+function val(type,sub,ent){
+  if((type==='spe'||type==='dep')&&sub==='fuel') return Math.round(fuelDetail(ent).cost);   // Spécialité: fuel spending = liters used × price
+  const r=rng(type+sub+ent), empty=r()<0.12; if(empty&&sub!=='fuel') return 0;  // every vehicle consumes fuel
+  const lvl=TYPES[type].subs[sub]; return Math.round(BASE[sub]*(0.35+r()*1.3)*(lvl==='i'?0.8:1));
+}
+function monthly(type,sub,ent,total){
+  const r=rng('m'+type+sub+ent); const w=MONTHS.map(()=>0.4+r()); const s=w.reduce((a,b)=>a+b,0);
+  return w.map(x=>Math.round(total*x/s));
+}
+
+
+/* types inside a sous-rubrique (values of the app's dropdowns) */
+const SUB_TYPES={
+  acc:{label:'Type de sinistre',src:'CarAccident.AccidentTypeId → AccidentType.Name',
+       list:['Accident de route','Accident de route avec autre véhicule','Bris de glaces','Dégât des eaux','Incendie','Vol','Autre'],
+       w:[30,26,14,5,4,12,9]},
+  maint:{label:'Type d’entretien',src:'CarRepairHistory.MaintenanceType → MaintenanceType.Name',
+       list:['Vidange','Bougies d’allumage','Pneus','Patins de frein','Filtre climatiseur','Filtre à air'],
+       w:[34,8,22,18,9,9]},
+  docs:{label:'Type de document',src:'Documents.DocumentsType → DocumentsType.Name',
+       list:['Vignette','Assurance','Contrôle technique','Autre taxe'],
+       w:[22,58,12,8]},
+};
+function splitTypes(sub,total,key){
+  const T=subTypes(sub), r=rng('ty'+sub+key);
+  const w=T.w.map(x=>x*(0.6+r()*0.8)), s=w.reduce((a,b)=>a+b,0);
+  const parts=w.map(x=>Math.round(total*x/s)); parts[0]+=total-parts.reduce((a,b)=>a+b,0);
+  return T.list.map((n,i)=>({n,v:parts[i]})).sort((a,b)=>b.v-a.v);
+}
+/* Catégorie and Article: purchases / consumption detailed by article or by supplier */
+const ARTICLE_LIST=['Filtre à huile','Huile 5W30 (5L)','Plaquettes de frein','Batterie 12V','Balais essuie-glace','Pneu 205/55 R16','Optique AV droite'];
+const SUB_TYPES_BY_TYPE={
+  cat:{buy:{label:'Article acheté',src:'DocumentArticle.ArticleId → Article.Name',list:ARTICLE_LIST,w:[18,24,20,14,5,15,4]},
+       cons:{label:'Article consommé',src:'StockMovment.IdArticle → Article.Name',list:ARTICLE_LIST,w:[22,28,16,8,6,14,6]}},
+  art:{buy:{label:'Fournisseur',src:'CommercialDocument.SupplierId → Supplier.Name',list:['Parts Center','Auto Pièces Sfax','Total Energies','Pneus Plus','four 100'],w:[34,26,18,14,8]},
+       cons:{label:'Fournisseur du stock consommé',src:'StockMovment.Supplier → Supplier.Name',list:['Parts Center','Auto Pièces Sfax','Total Energies','Pneus Plus','four 100'],w:[30,30,16,16,8]}},
+};
+const subTypes=s=>(SUB_TYPES_BY_TYPE[st.type]||{})[s]||SUB_TYPES[s];
+const openSubs=new Set(['acc','buy']);
+/* Département: one color per department (lines + bar segments) and filter of "Par sous-rubrique" */
+const DEP_COLORS={Transport:'#2563eb',Logistique:'#f59e0b',Commercial:'#16a34a',Direction:'#9333ea',Technique:'#0ea5e9'};
+let depFilter='all';
+/* vehicle info: Car.Icon (Icône GPS) and Car.SpecialityId -> Speciality.Name */
+const ICONS={Voiture:'🚗',Moto:'🏍️',Fourgon:'🚐','Pick-up':'🛻'};
+const VEH={'8125 TU 226':{ic:'Voiture',sp:'Livraison'},'8126 TU 226':{ic:'Fourgon',sp:'Transport'},'8127 TU 226':{ic:'Pick-up',sp:'Benne'},
+  'Tepee FM4200':{ic:'Fourgon',sp:'Livraison'},'8312 TU 193':{ic:'Voiture',sp:'Transport'},'7710 TU 201':{ic:'Fourgon',sp:'Frigo'}};
+/* number of vehicles per department: COUNT(Car) GROUP BY Car.DepartmentId */
+const DEP_CARS={Transport:12,Logistique:9,Commercial:6,Direction:3,Technique:5};
+/* number of vehicles per spécialité: COUNT(Car) GROUP BY Car.SpecialityId */
+const SPE_CARS={Livraison:14,Transport:10,Frigo:6,Benne:5};
+/* Spécialité analysis — mock inputs (real system: Mission / CarRental mileage, CarRepairHistory.CarMaintenanceId,
+   Tire warranty fields, Mission.FuelUsedLiters vs Car.FuelEstimation) */
+const SPE_KM={Livraison:62000,Transport:48000,Frigo:26000,Benne:14000};          // km driven in the period
+const DEP_KM={Transport:70000,Logistique:52000,Commercial:30000,Direction:15000,Technique:26000};   // km driven per département (mock)
+const DEP_OVER={Transport:.06,Logistique:.12,Commercial:.08,Direction:.05,Technique:.15};           // real consumption above estimation (mock)
+const SPE_UNPL={Livraison:.30,Transport:.35,Frigo:.45,Benne:.60};                  // share of maintenance without planned maintenance
+const SPE_WARR={Livraison:.08,Transport:.10,Frigo:.12,Benne:.22};                  // share of tyre spending on tyres still under warranty
+const SPE_OVER={Livraison:.06,Transport:.04,Frigo:.22,Benne:.15};                  // real consumption above Car.FuelEstimation
+const KM_BY={spe:SPE_KM,dep:DEP_KM}, OVER_BY={spe:SPE_OVER,dep:DEP_OVER};
+const UNPL_EXTRA=.30;                                                              // extra cost of an unplanned repair vs a planned one (assumption)
+function speStats(ents,M,byEnt){
+  return ents.map(e=>{
+    const g=s=>M[s+'|'+e]||0, tot=byEnt[e]||0, fixed=g('docs')+g('rent'), maint=g('maint'), unpl=Math.round(maint*SPE_UNPL[e]);
+    const warr=Math.round(g('tire')*SPE_WARR[e]), over=Math.round(g('fuel')*SPE_OVER[e]/(1+SPE_OVER[e])), extra=Math.round(unpl*UNPL_EXTRA);
+    return {e,tot,fixed,variable:tot-fixed,km:KM_BY[st.type][e],fuel:g('fuel'),perKm:KM_BY[st.type][e]?g('fuel')/KM_BY[st.type][e]:0,maint,unpl,warr,over,overPct:SPE_OVER[e],extra,rec:warr+over+extra};
+  });
+}
+const SPEC_COLORS={Livraison:'#0ea5e9',Transport:'#2563eb',Frigo:'#14b8a6',Benne:'#f59e0b'};
+/* ---------- state ---------- */
+const st={type:'car',period:2,ents:null,subs:null};
+const fmt=n=>Math.round(n).toLocaleString('fr-FR').replace(/ /g,' ')+' DT';
+const $=id=>document.getElementById(id);
+
+function init(){
+  $('periods').innerHTML=PERIODS.map((p,i)=>`<button class="chip ${i===st.period?'on':''}" data-p="${i}">${p}</button>`).join('');
+  $('periods').onclick=e=>{const b=e.target.closest('[data-p]');if(!b)return;st.period=+b.dataset.p;init()};
+  $('types').innerHTML=Object.entries(TYPES).map(([k,t])=>`<button class="${k===st.type?'on':''}" data-t="${k}">${t.ic} ${t.n}${t.isNew?'<span class="new">NOUVEAU</span>':''}</button>`).join('');
+  $('types').onclick=e=>{const b=e.target.closest('[data-t]');if(!b)return;st.type=b.dataset.t;st.ents=null;st.subs=null;init()};
+  const T=TYPES[st.type];
+  if(!st.ents) st.ents=new Set(T.ents);
+  if(!st.subs) st.subs=new Set(Object.keys(T.subs));
+  $('entLbl').textContent=T.pl;
+  $('ddBtn').textContent=(st.ents.size===T.ents.length?'Tous les ':st.ents.size+' ')+T.pl.toLowerCase()+(st.ents.size===T.ents.length?' ('+T.ents.length+')':' sélectionnés')+'  ▾';
+  $('ddMenu').innerHTML=`<div class="all" id="ddAll">${st.ents.size===T.ents.length?'Tout désélectionner':'Tout sélectionner'}</div>`+
+    T.ents.map(e=>`<label><input type="checkbox" value="${e}" ${st.ents.has(e)?'checked':''}> ${e}</label>`).join('');
+  $('subs').innerHTML=Object.entries(SUBS).map(([k,s])=>{
+    const lvl=T.subs[k];
+    if(!lvl) return `<span class="chip off" title="Pas de lien entre ${s.n} et ${T.n.toLowerCase()} dans les données">${s.n}</span>`;
+    return `<button class="chip ${st.subs.has(k)?'on':''}" data-s="${k}"><span class="sw" style="background:${s.c}"></span>${s.n}${lvl==='i'?' ◐':''}${s.isNew?'<span class="new">NOUVEAU</span>':''}</button>`}).join('');
+  const hasI=Object.values(T.subs).includes('i');
+  $('subHint').textContent=(hasI?'◐ = rattaché via le véhicule. ':'')+'Les sous-rubriques barrées n\'ont pas de lien avec ce type dans la base.';
+  render();
+}
+$('subs').onclick=e=>{const b=e.target.closest('[data-s]');if(!b)return;const k=b.dataset.s;st.subs.has(k)?st.subs.delete(k):st.subs.add(k);if(!st.subs.size)st.subs.add(k);init()};
+$('ddBtn').onclick=e=>{e.stopPropagation();$('ddMenu').classList.toggle('open')};
+$('ddMenu').onclick=e=>{e.stopPropagation();const T=TYPES[st.type];
+  if(e.target.id==='ddAll'){st.ents=st.ents.size===T.ents.length?new Set([T.ents[0]]):new Set(T.ents)}
+  else if(e.target.matches('input')){e.target.checked?st.ents.add(e.target.value):st.ents.delete(e.target.value);if(!st.ents.size)st.ents.add(e.target.value)}
+  else return; init(); $('ddMenu').classList.add('open')};
+document.addEventListener('click',()=>$('ddMenu').classList.remove('open'));
+
+function render(){
+  const T=TYPES[st.type], ents=T.ents.filter(e=>st.ents.has(e)), subs=Object.keys(SUBS).filter(k=>T.subs[k]&&st.subs.has(k));
+  const M={}; let total=0; const bySub={}, byEnt={}, byMonth=MONTHS.map(()=>({})), byMonthEnt=MONTHS.map(()=>({}));
+  subs.forEach(s=>{bySub[s]=0; ents.forEach(e=>{const v=val(st.type,s,e);M[s+'|'+e]=v;bySub[s]+=v;byEnt[e]=(byEnt[e]||0)+v;total+=v;
+    monthly(st.type,s,e,v).forEach((mv,i)=>{byMonth[i][s]=(byMonth[i][s]||0)+mv;byMonthEnt[i][e]=(byMonthEnt[i][e]||0)+mv})})});
+  const prev=Math.round(total*(0.82+rng(st.type+ents.length+subs.length)()*0.3));
+  const delta=(total-prev)/prev*100;
+  const avg=ents.length?total/ents.length:0;
+
+  /* KPIs — the last two cards are clickable and open their detail */
+  const topSub=Object.entries(bySub).sort((a,b)=>b[1]-a[1])[0];
+  const topEnt=Object.entries(byEnt).sort((a,b)=>b[1]-a[1])[0];
+  const TOP_TITLE={car:'Véhicule le plus coûteux',drv:'Chauffeur le plus coûteux',dep:'Département le plus lourd',spe:'Spécialité la plus lourde'};
+  const k=[
+    ['Total dépenses',fmt(total).replace(' DT','<small> DT</small>'),$('cmp').checked?`<span class="${delta>0?'up':'down'}">${delta>0?'▲':'▼'} ${Math.abs(delta).toFixed(1)} %</span> vs période précédente`:''],
+    ['Sous-rubrique la plus lourde',topSub?SUBS[topSub[0]].n:'—',topSub?`${fmt(topSub[1])} · ${Math.round(topSub[1]/total*100)} % du total`:'',topSub?'sub:'+topSub[0]:''],
+    [TOP_TITLE[st.type]+' <span class="new">NOUVEAU</span>',topEnt?topEnt[0]:'—',topEnt?`${fmt(topEnt[1])} · ${Math.round(topEnt[1]/total*100)} % du total`:'',topEnt?'ent:'+topEnt[0]:''],
+  ];
+
+  $('kpis').innerHTML=k.map(x=>`<div class="kpi ${x[3]?'click':''}" ${x[3]?`data-act="${x[3]}" title="Voir le détail"`:''}><div class="k">${x[0]}</div><div class="v">${x[1]}</div><div class="d">${x[2]}${x[3]?'<span class="more">Voir le détail ›</span>':''}</div></div>`).join('');
+  const SS=GROUP[st.type]?speStats(ents,M,byEnt):null;
+
+  /* Spécialité: analysis of the spending (all amounts in DT) */
+  $('speBox').classList.toggle('hidden',!SS);
+  if(SS){
+    const isSpe=st.type==='spe';
+    $('speSecT').textContent='Analyse des dépenses par '+T.n.toLowerCase();
+    $('speSecS').textContent='chaque montant vient des dépenses de la période, rattachées via '+GROUP[st.type].src;
+    ['speUnpl','speFuel'].forEach(id=>$(id).closest('.card').classList.toggle('hidden',!isSpe));   // Département: only the fuel cost per km
+    $('speKm').closest('.card').classList.toggle('wide',!isSpe);
+    const C=GROUP[st.type].colors, nm=x=>`<span class="nm"><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${C[x.e]};margin-right:6px"></span>${x.e}</span>`;
+    const mx=f=>Math.max(1,...SS.map(f));
+    const sorted=f=>[...SS].sort((a,b)=>f(b)-f(a));
+    // 2. cost per km
+    const kmAll=SS.reduce((a,x)=>a+x.km,0), totAll=SS.reduce((a,x)=>a+x.fuel,0);   // fuel spending only
+    { const sumK=SS.reduce((a,x)=>a+x.perKm,0)||1, R0=62, CIRC=2*Math.PI*R0; let off=0;
+      const arcs=sorted(x=>x.perKm).map(x=>{const len=x.perKm/sumK*CIRC, s=`<circle r="${R0}" cx="80" cy="80" fill="none" stroke="${C[x.e]}" stroke-width="26" stroke-dasharray="${len} ${CIRC-len}" stroke-dashoffset="${-off}" transform="rotate(-90 80 80)" data-e="${x.e}" style="cursor:pointer"><title>${x.e} : ${x.perKm.toFixed(2).replace('.',',')} DT/km</title></circle>`; off+=len; return s}).join('');
+      const avgKm=kmAll?totAll/kmAll:0;
+      $('speKm').innerHTML=`<svg viewBox="0 0 160 160" class="pie" role="img" aria-label="Coût du carburant par km par ${T.n.toLowerCase()}">${arcs}<text x="80" y="76" text-anchor="middle" font-size="17" font-weight="700" fill="#0f172a">${avgKm.toFixed(2).replace('.',',')}</text><text x="80" y="94" text-anchor="middle" font-size="10" fill="#64748b">DT/km carburant</text></svg>
+        <div class="pie-leg">${sorted(x=>x.perKm).map(x=>`<div class="pl" data-e="${x.e}"><i style="background:${C[x.e]}"></i><span class="pn">${x.e}</span><b>${x.perKm.toFixed(2).replace('.',',')} DT/km</b><small>${x.km.toLocaleString('fr-FR')} km · ${Math.round(x.perKm/sumK*100)} %</small></div>`).join('')}</div>`; }
+    if(isSpe){
+    // 3. maintenance: done (cost) and upcoming (km or engine hours left, no price), filtered by planning type
+    const MR=SS.map(x=>{const D=maintDone(x.e,x.maint).filter(o=>maintMode==='all'||o.mode===maintMode), P=maintPlan(x.e).filter(q=>maintMode==='all'||q.mode===maintMode);
+      return {x,done:D.reduce((a,o)=>a+o.a,0),P,soon:P.filter(q=>q.soon).length}}).sort((a,b)=>b.done-a.done);
+    const mdone=Math.max(1,...MR.map(m=>m.done));
+    $('speUnpl').innerHTML=maintChips()+MR.map(({x,done,P,soon})=>`<div class="r" data-e="${x.e}" title="Voir les entretiens">${nm(x)}<div class="track"><div class="fill" style="width:${done/mdone*100}%;background:#2563eb"></div></div><span class="val">${fmt(done)} <small>${P.length} à venir${soon?` · <b style="color:#dc2626">${soon} bientôt</b>`:''}</small></span></div>`).join('');
+    // 5. fuel: real consumption vs estimation (Car.FuelEstimation), in L/100 km
+    const FD=Object.fromEntries(SS.map(x=>[x.e,fuelDetail(x.e)])), SC=1.5;   // scale: 0 → 150 % of the estimation
+    $('speFuel').innerHTML=sorted(x=>FD[x.e].dt).map(x=>{const F=FD[x.e], p=Math.min(F.pct,SC);
+      return `<div class="r" data-e="${x.e}" title="Voir le détail par véhicule">${nm(x)}<div class="track fuelb">
+        <span class="real" style="width:${Math.min(p,1)/SC*100}%"></span>
+        ${p>1?`<span class="excess" style="left:${100/SC}%;width:${(p-1)/SC*100}%"></span>`:''}
+        <span class="mark" style="left:${100/SC}%"></span></div>
+        <span class="val">${fmt(F.dt)} <small>${l100(F.est)} → ${l100(F.real)} L/100 km</small></span></div>`}).join('');
+    }
+    const onRow=f=>ev=>{const r=ev.target.closest('[data-e]');if(r)f(r.dataset.e)};
+    $('speKm').onclick=onRow(e=>openKmDrawer(e)); $('speUnpl').onclick=ev=>{const c=ev.target.closest('[data-mm]'); if(c){maintMode=c.dataset.mm;render();return} const r=ev.target.closest('[data-e]'); if(r) openMaintDrawer(r.dataset.e)};
+    $('speFuel').onclick=ev=>{const r=ev.target.closest('[data-e]');if(r)openFuelDrawer(r.dataset.e)};
+    lastSS=SS;
+  }
+
+  /* insights */
+  const sortedE=Object.entries(byEnt).sort((a,b)=>b[1]-a[1]);
+  const topE=sortedE[0]||['—',0];
+  const topS=Object.entries(bySub).sort((a,b)=>b[1]-a[1])[0]||['maint',0];
+  const ins=[];
+  if(topE[1]) ins.push(['warn','Au-dessus de la moyenne',`<b style="display:inline;text-transform:none;letter-spacing:0">${topE[0]}</b> coûte ${fmt(topE[1])}, soit +${Math.round((topE[1]/avg-1)*100)} %.`]);
+  ins.push(['info','Poste principal',`${SUBS[topS[0]].n} représente ${Math.round(topS[1]/total*100)||0} % des dépenses (${fmt(topS[1])}).`]);
+  /* smallest total of the selection */
+  const LOW_TITLE={car:'Véhicule le plus économique',drv:'Chauffeur le plus économique',dep:'Département le plus économique',spe:'Spécialité la plus économique',cat:'Catégorie la plus économique',art:'Article le plus économique'};
+  const low=sortedE[sortedE.length-1];
+  if(low&&low[1]&&sortedE.length>1) ins.push(['ok',LOW_TITLE[st.type],
+    `<b style="display:inline;text-transform:none;letter-spacing:0">${low[0]}</b> : ${fmt(low[1])} dépensés sur la période (${Math.round(low[1]/total*100)} % du total), le montant le plus bas des ${T.pl.toLowerCase()} sélectionné${st.type==='cat'||st.type==='spe'?'e':''}s.`]);
+  $('insights').innerHTML=ins.map(i=>`<div class="ins ${i[0]}"><b>${i[1]}</b>${i[2]}</div>`).join('');
+
+  /* monthly stacked columns */
+  const W=620,H=230,pl=44,pb=24,pt=8, maxM=Math.max(1,...byMonth.map(m=>Object.values(m).reduce((a,b)=>a+b,0)));
+  const step=(W-pl)/MONTHS.length, bw=step*0.58, sc=(H-pb-pt)/maxM;
+  let svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Évolution mensuelle des dépenses">`;
+  for(let i=0;i<=4;i++){const y=H-pb-(H-pb-pt)*i/4;svg+=`<line x1="${pl}" x2="${W}" y1="${y}" y2="${y}" stroke="#e2e8f0"/><text x="${pl-6}" y="${y+4}" font-size="10" fill="#64748b" text-anchor="end">${(maxM*i/4/1000).toFixed(1).replace('.',',').replace(',0','')}k</text>`}
+  byMonth.forEach((m,i)=>{let y=H-pb;const x=pl+i*step+(step-bw)/2;
+    subs.forEach(s=>{const h=(m[s]||0)*sc; if(h<=0)return; y-=h; svg+=`<rect x="${x}" y="${y}" width="${bw}" height="${Math.max(h-1,0.5)}" fill="${SUBS[s].c}"><title>${MONTHS[i]} · ${SUBS[s].n} : ${fmt(m[s])}</title></rect>`});
+    svg+=`<text x="${x+bw/2}" y="${H-7}" font-size="11" fill="#64748b" text-anchor="middle">${MONTHS[i]}</text>`});
+  $('evo').innerHTML=svg+'</svg>';
+  $('evoSub').textContent='2026, empilé par sous-rubrique';
+  $('evoLeg').innerHTML=subs.map(s=>`<span><i style="background:${SUBS[s].c}"></i>${SUBS[s].n}</span>`).join('');
+  if(GROUP[st.type]){ /* one line per department / spécialité */
+    const GC=GROUP[st.type].colors;
+    const mx=Math.max(1,...byMonthEnt.flatMap(m=>ents.map(e=>m[e]||0)))*1.1, sy=(H-pb-pt)/mx, xs=i=>pl+i*step+step/2;
+    let s2=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Évolution mensuelle par département">`;
+    for(let i=0;i<=4;i++){const y=H-pb-(H-pb-pt)*i/4;s2+=`<line x1="${pl}" x2="${W}" y1="${y}" y2="${y}" stroke="#e2e8f0"/><text x="${pl-6}" y="${y+4}" font-size="10" fill="#64748b" text-anchor="end">${(mx*i/4/1000).toFixed(1).replace('.',',').replace(',0','')}k</text>`}
+    MONTHS.forEach((m,i)=>s2+=`<text x="${xs(i)}" y="${H-7}" font-size="11" fill="#64748b" text-anchor="middle">${m}</text>`);
+    ents.forEach(e=>{const pts=byMonthEnt.map((m,i)=>[xs(i),H-pb-(m[e]||0)*sy]);
+      s2+=`<polyline points="${pts.map(p=>p.join(',')).join(' ')}" fill="none" stroke="${GC[e]}" stroke-width="2.2" stroke-linejoin="round"/>`+
+        pts.map((p,i)=>`<circle cx="${p[0]}" cy="${p[1]}" r="3.2" fill="#fff" stroke="${GC[e]}" stroke-width="2"><title>${e} · ${MONTHS[i]} : ${fmt(byMonthEnt[i][e]||0)}</title></circle>`).join('');});
+    $('evo').innerHTML=s2+'</svg>';
+    $('evoSub').textContent='2026, une courbe par '+T.n.toLowerCase();
+    $('evoLeg').innerHTML=ents.map(e=>`<span><i style="background:${GC[e]}"></i>${e} · ${fmt(byEnt[e]||0)}</span>`).join('');
+  }
+
+  /* by sub — Sinistres, Maintenance, Documents expand into their types */
+  const isDepV=!!GROUP[st.type], GCol=isDepV?GROUP[st.type].colors:{};
+  if(isDepV&&depFilter!=='all'&&!ents.includes(depFilter)) depFilter='all';
+  const one=isDepV&&depFilter!=='all';
+  const subVal=s=>one?(M[s+'|'+depFilter]||0):bySub[s], base=one?(byEnt[depFilter]||0):total;
+  const subRows=Object.keys(bySub).map(s=>[s,subVal(s)]).filter(r=>r[1]>0).sort((a,b)=>b[1]-a[1]);
+  const maxS=Math.max(1,...subRows.map(r=>r[1]));
+  const typeKey=st.type+[...st.ents].sort().join(',')+(one?depFilter:'');
+  const chips=isDepV?`<div class="depf">${[['all','Tous']].concat(ents.map(e=>[e,e])).map(([k,l])=>`<button class="chip ${depFilter===k?'on':''}" data-df="${k}">${k==='all'?'':`<span class="sw" style="background:${GCol[k]}"></span>`}${l}</button>`).join('')}</div>
+    <div class="hint" style="margin:-4px 0 10px">${one?`<b>${depFilter}</b> : ${fmt(base)} · % = part de ses dépenses`:`Chaque barre est découpée par ${T.n.toLowerCase()} · survolez un segment pour le détail`}</div>`:'';
+  const barOf=(s,v)=>isDepV&&!one
+    ? `<div class="track stack">${ents.map(e=>{const x=M[s+'|'+e]||0;return x?`<i style="width:${x/maxS*100}%;background:${GCol[e]}" title="${e} : ${fmt(x)} (${Math.round(x/v*100)} % de ${SUBS[s].n})"></i>`:''}).join('')}</div>`
+    : `<div class="track"><div class="fill" style="width:${v/maxS*100}%;background:${SUBS[s].c}"></div></div>`;
+  $('bySub').innerHTML=chips+'<div class="rank">'+subRows.map(([s,v])=>{
+    const exp=!!subTypes(s)&&v>0, open=exp&&openSubs.has(s);
+    let row=`<div class="r sr-row ${exp?'exp':''} ${open?'open':''}" data-sr="${exp?s:''}" style="grid-template-columns:140px 1fr 110px"><span class="nm">${exp?'<span class="car">▶</span>':'<span class="car"></span>'}${SUBS[s].n}</span>${barOf(s,v)}<span class="val">${fmt(v)} <span style="color:#64748b;font-weight:500">${Math.round(v/base*100)||0}%</span></span></div>`;
+    if(open){const parts=splitTypes(s,v,typeKey), mx=parts[0].v||1;
+      row+=`<div class="sr-types" style="--c:${SUBS[s].c}">`+parts.map((p,i)=>`<div class="t ${i===0?'best':''}"><span class="lab">${p.n}</span><span class="bar"><i style="width:${p.v/mx*100}%"></i></span><span class="v">${fmt(p.v)} · ${Math.round(p.v/v*100)} %</span></div>`).join('')+
+        `<div class="src-l">${subTypes(s).label} · % de ${SUBS[s].n.toLowerCase()} · source : ${subTypes(s).src}</div></div>`;}
+    return row}).join('')+'</div>';
+  $('bySub').onclick=ev=>{const f=ev.target.closest('[data-df]');if(f){depFilter=f.dataset.df;render();return}
+    const r=ev.target.closest('[data-sr]');if(!r||!r.dataset.sr)return;const s=r.dataset.sr;openSubs.has(s)?openSubs.delete(s):openSubs.add(s);render()};
+
+  /* ranking */
+  $('rankTitle').textContent='Classement des '+T.pl.toLowerCase();
+  const maxE=Math.max(1,...Object.values(byEnt));
+  const isCar=st.type==='car';
+  const isDep=!!GROUP[st.type], G=GROUP[st.type]||{};
+  const perCar=e=>G.cars&&G.cars[e]?(byEnt[e]||0)/G.cars[e]:0;
+  const nameCell=(e,v)=>isCar&&VEH[e]?`<span class="veh"><span class="ico">${ICONS[VEH[e].ic]}</span><span class="tx"><b>${e}</b><small>${VEH[e].ic} · ${VEH[e].sp}</small></span></span>`:
+    isDep?`<span class="veh"><span class="ico">${G.ico}</span><span class="tx"><b>${e}</b></span></span>`:e;
+  $('rank').innerHTML=sortedE.map(([e,v])=>`<div class="r" data-e="${e}" style="${isCar?'grid-template-columns:200px 1fr 90px':isDep?'grid-template-columns:150px 1fr 90px':''}"><span class="nm">${nameCell(e,v)}</span><div class="track"><div class="fill" style="width:${v/maxE*100}%"></div><div class="avg" style="left:${avg/maxE*100}%"></div></div><span class="val">${fmt(v)}</span></div>`).join('');
+  /* Département: ranking comes right after "À retenir", before the charts */
+  const g2=$('g2'), rc=$('rankCard'), dr=$('depRow');
+  dr.classList.toggle('hidden',!isDep);
+  if(isDep){dr.insertBefore(rc,$('perCarCard')); rc.style.marginBottom='0';}
+  else{g2.parentNode.insertBefore(rc,g2); rc.style.marginBottom='14px';}   // same order on every dashboard: ranking before the charts
+  /* Département: separate chart, cost per vehicle = department total ÷ its vehicles */
+  if(isDep){const nAll=ents.reduce((a,e)=>a+(G.cars[e]||0),0), avgCar=nAll?total/nAll:0;
+    const rows=ents.map(e=>[e,perCar(e)]).sort((a,b)=>b[1]-a[1]), mx=Math.max(1,...rows.map(r=>r[1]));
+    $('perCar').innerHTML=rows.map(([e,v],i)=>`<div class="r" data-e="${e}" style="grid-template-columns:190px 1fr 110px"><span class="nm"><span class="veh"><span class="ico">${G.ico}</span><span class="tx"><b>${e}${i===0?' <span class="hi">le plus élevé</span>':''}</b><small>${G.cars[e]} véhicules</small></span></span></span><div class="track"><div class="fill" style="width:${v/mx*100}%;background:#0d9488"></div><div class="avg" style="left:${avgCar/mx*100}%"></div></div><span class="val">${fmt(v)}<small style="color:#64748b;font-weight:500"> /véh.</small></span></div>`).join('');
+    $('perCar').onclick=ev=>{const r=ev.target.closest('[data-e]');if(r)openDrawer(null,r.dataset.e)};}
+  $('rank').onclick=e=>{const r=e.target.closest('[data-e]');if(r)openDrawer(null,r.dataset.e)};
+
+
+  /* heatmap table */
+  $('tblType').textContent=T.n.toLowerCase();
+  const maxC=Math.max(1,...Object.values(M));
+  let h=`<thead><tr><th>Sous-rubrique</th>${ents.map(e=>`<th>${e}</th>`).join('')}<th>Total</th><th>% total</th></tr></thead><tbody>`;
+  subs.forEach(s=>{h+=`<tr><td><span class="sw" style="display:inline-block;width:9px;height:9px;border-radius:3px;background:${SUBS[s].c};margin-right:6px"></span>${SUBS[s].n}${T.subs[s]==='i'?' ◐':''}</td>`;
+    ents.forEach(e=>{const v=M[s+'|'+e];const a=v/maxC;h+=`<td class="cell" data-s="${s}" data-e="${e}" style="background:rgba(37,99,235,${(a*0.28).toFixed(3)})">${fmt(v)}</td>`});
+    h+=`<td class="rt tlink" data-s="${s}" title="${SUBS[s].n} : tous les ${T.pl.toLowerCase()}">${fmt(bySub[s])}</td><td>${Math.round(bySub[s]/total*100)||0} %</td></tr>`});
+  h+=`<tr class="tot"><td>Total</td>${ents.map(e=>`<td class="tlink" data-e="${e}" title="${e} : toutes les sous-rubriques">${fmt(byEnt[e]||0)}<span class="pct">${Math.round((byEnt[e]||0)/total*100)||0} %</span></td>`).join('')}<td>${fmt(total)}</td><td>100 %</td></tr></tbody>`;
+  $('tbl').innerHTML=h;
+}
+$('kpis').onclick=ev=>{const c=ev.target.closest('[data-act]');if(!c)return;const [t,v]=c.dataset.act.split(':');t==='sub'?openDrawer(v,null):openDrawer(null,v)};
+$('tbl').onclick=e=>{const c=e.target.closest('[data-s],[data-e]');if(c)openDrawer(c.dataset.s||null,c.dataset.e||null)};
+
+/* drawer with operations */
+const SUPPLIERS={maint:['Garage Ennour','Auto Service Nabeul'],fuel:['Agil','Total Energies'],tire:['Pneus Plus','Point S'],rent:['Auto Location Sahel'],docs:['STAR Assurances','Centre de visite technique'],acc:['STAR Assurances','COMAR'],miss:['Frais sur route'],buy:['Parts Center','Auto Pièces Sfax'],cons:['Magasin interne']};
+function openDrawer(sub,ent){
+  if(GROUP[st.type]&&!sub&&ent) return openDeptDrawer(ent);
+  const T=TYPES[st.type]; const subs=sub?[sub]:Object.keys(SUBS).filter(k=>T.subs[k]&&st.subs.has(k));
+  const ents=ent?[ent]:T.ents.filter(e=>st.ents.has(e));
+  const rows=[];
+  subs.forEach(s=>ents.forEach(e=>{let v=val(st.type,s,e);const r=rng('op'+s+e);let n=1+Math.floor(r()*4);
+    while(v>0&&n>0){const a=n===1?v:Math.round(v*(0.2+r()*0.5));v-=a;n--;
+      rows.push({d:`${String(1+Math.floor(r()*27)).padStart(2,'0')}/${String(1+Math.floor(r()*8)).padStart(2,'0')}/2026`,s,e,a,f:SUPPLIERS[s][Math.floor(r()*SUPPLIERS[s].length)],ref:'REF-'+Math.floor(1000+r()*8999)})}}));
+  rows.sort((a,b)=>b.a-a.a);
+  $('dTitle').textContent=(sub?SUBS[sub].n:'Toutes sous-rubriques')+(ent?' · '+ent:'');
+  const noSupplier=st.type==='drv'||!!GROUP[st.type]; // no Fournisseur column for Chauffeur, Département, Spécialité
+  const isCar=st.type==='car', spOf=e=>VEH[e]?VEH[e].sp:'—';
+  const specTag=sp=>`<span class="spec" style="background:${SPEC_COLORS[sp]||'#64748b'}">${sp}</span>`;
+  $('dSub').innerHTML=(sub?`Source : <span class="src">${SUBS[sub].src}</span> · menu « ${SUBS[sub].menu} »`:`${T.n} : ${ent}`)+(isCar&&ent?` · Spécialité : ${specTag(spOf(ent))}`:'');
+  let specHtml='';
+  if(isCar&&!ent){const tot=rows.reduce((a,r)=>a+r.a,0)||1, by={};rows.forEach(r=>by[spOf(r.e)]=(by[spOf(r.e)]||0)+r.a);
+    const arr=Object.entries(by).sort((a,b)=>b[1]-a[1]), mx=arr[0]?arr[0][1]:1;
+    specHtml=`<div class="spec-sum"><h4>Répartition par spécialité</h4>`+arr.map(([sp,v])=>`<div class="t"><span>${specTag(sp)}</span><span class="bar"><i style="width:${v/mx*100}%;background:${SPEC_COLORS[sp]||'#64748b'}"></i></span><span class="v">${fmt(v)} · ${Math.round(v/tot*100)} %</span></div>`).join('')+
+      `<div class="hint" style="margin-top:6px">Source : Car.SpecialityId → Speciality.Name</div></div>`;}
+  $('dBody').innerHTML=`<p><b>${rows.length}</b> opération${rows.length>1?'s':''} · <b>${fmt(rows.reduce((a,r)=>a+r.a,0))}</b></p>${specHtml}
+    <table><thead><tr><th>Date</th><th>Sous-rubrique</th>${ent?'':`<th>${T.n}</th>`}${noSupplier?'':`<th>${isCar?'Spécialité':'Fournisseur'}</th>`}<th>Réf.</th><th>Montant</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${r.d}</td><td>${SUBS[r.s].n}</td>${ent?'':`<td>${r.e}</td>`}${noSupplier?'':`<td>${isCar?specTag(spOf(r.e)):r.f}</td>`}<td>${r.ref}</td><td>${fmt(r.a)}</td></tr>`).join('')}</tbody></table>
+    <p class="hint">Chaque ligne ouvre la fiche d'origine (ex. « ${sub?SUBS[sub].menu:'menu source'} »).</p>`;
+  $('drawer').classList.add('open');$('dbg').classList.add('open');
+}
+/* ---------- Département drill-down: department → its vehicles → one vehicle ---------- */
+const DEP_VEH_FIXED={Transport:['8125 TU 226','8126 TU 226'],Technique:['8127 TU 226'],Logistique:['Tepee FM4200'],Commercial:['8312 TU 193'],Direction:['7710 TU 201']};
+const VEH_SUBS=['maint','fuel','tire','rent','docs','acc','miss'];   // linked to a vehicle (CarId)
+const SPE_VEH_FIXED={Livraison:['8125 TU 226','Tepee FM4200'],Transport:['8126 TU 226','8312 TU 193'],Benne:['8127 TU 226'],Frigo:['7710 TU 201']};
+/* Département and Spécialité are both properties of the vehicle: same dashboard, different settings */
+const GROUP={
+  dep:{cars:DEP_CARS,colors:DEP_COLORS,fixed:DEP_VEH_FIXED,src:'Car.DepartmentId',pct:'% dépt.',ico:'🏢'},
+  spe:{cars:SPE_CARS,colors:SPEC_COLORS,fixed:SPE_VEH_FIXED,src:'Car.SpecialityId',pct:'% spéc.',ico:'🏷️'},
+};
+function depVehicles(d){
+  const G=GROUP[st.type], isSpe=st.type==='spe', depOf={};
+  Object.entries(DEP_VEH_FIXED).forEach(([dd,ms])=>ms.forEach(m=>depOf[m]=dd));
+  const r=rng((isSpe?'dvs':'dv')+d), list=(G.fixed[d]||[]).map(m=>({m,ic:VEH[m].ic,sp:VEH[m].sp,dep:depOf[m]}));
+  const ics=['Voiture','Fourgon','Pick-up','Voiture','Fourgon','Moto'], sps=['Livraison','Transport','Frigo','Benne'], deps=Object.keys(DEP_CARS);
+  const ICS_BY={Livraison:['Voiture','Fourgon','Moto','Voiture'],Transport:['Fourgon','Pick-up','Voiture','Fourgon'],Frigo:['Fourgon','Fourgon','Pick-up','Fourgon'],Benne:['Pick-up','Fourgon','Pick-up','Pick-up']};  // vehicle types that fit the spécialité
+  while(list.length<(G.cars[d]||0)){const m=`${1000+Math.floor(r()*8999)} TU ${150+Math.floor(r()*80)}`, pick=r(), ic=isSpe?ICS_BY[d][Math.floor(pick*4)]:ics[Math.floor(pick*ics.length)], x=Math.floor(r()*4);
+    list.push(isSpe?{m,ic,sp:d,dep:deps[x]}:{m,ic,sp:sps[x],dep:d});}
+  return list;
+}
+function depSplit(d){
+  const T=TYPES[st.type], subs=Object.keys(SUBS).filter(k=>T.subs[k]&&st.subs.has(k));
+  const veh=depVehicles(d).map(v=>({...v,subs:{},tot:0})), other={};
+  subs.forEach(s=>{const v=val(st.type,s,d);
+    if(!VEH_SUBS.includes(s)){if(v)other[s]=v;return;}
+    if(GROUP[st.type]&&s==='fuel'){   // each vehicle: its own liters × price (same numbers as the fuel panels)
+      const byM=Object.fromEntries(fuelDetail(d).rows.map(x=>[x.m,Math.round(x.reel*x.price)])); let rest=v;
+      veh.forEach((x,i)=>{const a=i===veh.length-1?rest:(byM[x.m]||0);rest-=a;if(a>0){x.subs.fuel=a;x.tot+=a;}}); return;}
+    const r=rng('sp'+s+d), w=veh.map(()=>0.2+r()*r()*3), sw=w.reduce((a,b)=>a+b,0);
+    let rest=v; veh.forEach((x,i)=>{const a=i===veh.length-1?rest:Math.round(v*w[i]/sw);rest-=a;if(a>0){x.subs[s]=a;x.tot+=a;}});});
+  veh.sort((a,b)=>b.tot-a.tot);
+  return {veh,other,vehTot:veh.reduce((a,x)=>a+x.tot,0),otherTot:Object.values(other).reduce((a,b)=>a+b,0)};
+}
+let depCtx=null;
+function openDeptDrawer(d){
+  const D=depSplit(d), tot=D.vehTot+D.otherTot||1; depCtx={d,D};
+  const T=TYPES[st.type], G=GROUP[st.type], isSpe=st.type==='spe';
+  $('dTitle').textContent=T.n+' '+d;
+  $('dSub').innerHTML=`${D.veh.length} véhicules · source : ${G.src}`;
+  $('dBody').innerHTML=`<p><b>${fmt(tot)}</b> sur la période · véhicules ${fmt(D.vehTot)}${D.otherTot?` · achats ${fmt(D.otherTot)}`:''}</p>
+    <table class="dv"><thead><tr><th>Véhicule</th><th>Montant</th><th>${G.pct}</th><th></th></tr></thead><tbody>
+    ${D.veh.map((v,i)=>`<tr class="vrow" data-i="${i}"><td><span class="veh"><span class="ico">${ICONS[v.ic]}</span><span class="tx"><b>${v.m}</b><small>${v.ic} · ${isSpe?'Département '+v.dep:v.sp}</small></span></span></td><td><b>${fmt(v.tot)}</b></td><td><span class="mini"><i style="width:${v.tot/(D.veh[0].tot||1)*100}%"></i></span>${Math.round(v.tot/tot*100)} %</td><td class="chev">›</td></tr>`).join('')}
+    ${D.otherTot?`<tr class="orow"><td><span class="veh"><span class="ico">🧾</span><span class="tx"><b>Achats</b><small>${Object.keys(D.other).map(s=>SUBS[s].n).join(' + ')} · non rattachés à un véhicule</small></span></span></td><td><b>${fmt(D.otherTot)}</b></td><td>${Math.round(D.otherTot/tot*100)} %</td><td></td></tr>`:''}
+    </tbody></table><p class="hint">Cliquez un véhicule pour voir le détail de ses dépenses.</p>`;
+  $('drawer').classList.add('open');$('dbg').classList.add('open');$('drawer').querySelector('.body').scrollTop=0;
+}
+function openDeptCar(i){
+  const {d,D}=depCtx, v=D.veh[i];
+  const specTag=sp=>`<span class="spec" style="background:${SPEC_COLORS[sp]||'#64748b'}">${sp}</span>`;
+  const parts=Object.entries(v.subs).sort((a,b)=>b[1]-a[1]), mx=parts.length?parts[0][1]:1;
+  const rows=[]; parts.forEach(([s,a0])=>{let a=a0; const r=rng('op'+s+v.m); let n=1+Math.floor(r()*3);
+    while(a>0&&n>0){const x=n===1?a:Math.round(a*(0.3+r()*0.4));a-=x;n--;
+      rows.push({d:`${String(1+Math.floor(r()*27)).padStart(2,'0')}/${String(1+Math.floor(r()*8)).padStart(2,'0')}/2026`,s,a:x,ref:'REF-'+Math.floor(1000+r()*8999)})}});
+  rows.sort((a,b)=>b.a-a.a);
+  $('dTitle').innerHTML=`${ICONS[v.ic]} ${v.m}`;
+  $('dSub').innerHTML=`${v.ic} · ${specTag(v.sp)} · Département ${v.dep}`;
+  $('dBody').innerHTML=`<button class="btn back" id="dBack">← Retour à ${d}</button>
+    <p><b>${fmt(v.tot)}</b> sur la période · ${rows.length} opération${rows.length>1?'s':''}</p>
+    <div class="spec-sum"><h4>Répartition par sous-rubrique</h4>${parts.map(([s,a])=>`<div class="t" style="grid-template-columns:130px 1fr 130px"><span>${SUBS[s].n}</span><span class="bar"><i style="width:${a/mx*100}%;background:${SUBS[s].c}"></i></span><span class="v">${fmt(a)} · ${Math.round(a/v.tot*100)} %</span></div>`).join('')}</div>
+    <table><thead><tr><th>Date</th><th>Sous-rubrique</th><th>Réf.</th><th>Montant</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${r.d}</td><td>${SUBS[r.s].n}</td><td>${r.ref}</td><td>${fmt(r.a)}</td></tr>`).join('')}</tbody></table>`;
+  $('drawer').querySelector('.body').scrollTop=0;
+}
+$('dBody').addEventListener('click',ev=>{
+  const mm=ev.target.closest('[data-mm]'); if(mm&&maintE){maintMode=mm.dataset.mm;render();return openMaintDrawer(maintE);}
+  if(ev.target.closest('#dBack')) return depCtx.back==='km'?openKmDrawer(depCtx.d):openDeptDrawer(depCtx.d);
+  const r=ev.target.closest('tr.vrow'); if(r) openDeptCar(+r.dataset.i);
+});
+/* ---------- Surconsommation carburant: detail by vehicle ---------- */
+let lastSS=null;
+const FUEL_PRICES={Diesel:2.205,Essence:2.525};                    // DT per liter by fuel type (Car.FuelType) — Tunisian prices
+const FUEL_EST={Voiture:7,Fourgon:9.5,'Pick-up':10,Moto:4};       // Car.FuelEstimation, L/100 km (mock by vehicle type)
+const l100=v=>v.toFixed(1).replace('.',',');
+/* per vehicle of a spécialité:
+   real L/100 km = CarRental.FuelConsumedLiters (with FuelLevel) ÷ km of the rentals (EndMileage − StartMileage) × 100
+   gap = real − Estimation carburant (Car.FuelEstimation) ; liters over = gap × km ÷ 100 ; money = liters over × price of its fuel type */
+function fuelDetail(e){
+  const r=rng('fu'+e), veh=depVehicles(e), w=veh.map(()=>0.4+r()), sw=w.reduce((a,b)=>a+b,0);
+  const rows=veh.map((v,i)=>{
+    const km=Math.round(KM_BY[st.type][e]*w[i]/sw), est=Math.round(((FUEL_EST[v.ic]||8)+(r()-0.5)*2)*10)/10;
+    const fuel=v.ic==='Moto'||(v.ic==='Voiture'&&r()<0.5)?'Essence':'Diesel', price=FUEL_PRICES[fuel];
+    const ratio=r()<0.35?-0.05+r()*0.07:OVER_BY[st.type][e]*(0.4+r()*1.4);   // some vehicles consume at or under their estimation
+    const real=Math.round(est*(1+ratio)*10)/10, gap=Math.max(0,Math.round((real-est)*10)/10);
+    const prev=km*est/100, reel=km*real/100, trop=Math.round(gap*km/100);
+    return {...v,km,est,real,gap,fuel,price,prev,reel,trop,dt:Math.round(trop*price)};
+  }).sort((a,b)=>b.dt-a.dt||b.gap-a.gap);
+  const S=k=>rows.reduce((a,x)=>a+x[k],0), km=S('km')||1;
+  return {rows,km,prev:S('prev'),reel:S('reel'),trop:S('trop'),dt:S('dt'),cost:rows.reduce((a,x)=>a+x.reel*x.price,0),
+          est:S('prev')/km*100,real:S('reel')/km*100,pct:S('reel')/(S('prev')||1)};
+}
+/* Coût par km: each vehicle of the spécialité with km driven, amount spent and cost per km
+   (same km as the fuel detail, same amounts as the vehicle list) */
+function openKmDrawer(e){
+  const D=depSplit(e), F=fuelDetail(e), kmOf=Object.fromEntries(F.rows.map(r=>[r.m,r.km]));
+  depCtx={d:e,D,back:'km'};                                 // a click on a vehicle opens its detail, ← Retour comes back here
+  const rows=D.veh.map((v,i)=>({...v,i,km:kmOf[v.m]||0,fuel:v.subs.fuel||0})).map(v=>({...v,perKm:v.km?v.fuel/v.km:0})).sort((a,b)=>b.perKm-a.perKm);
+  const tot=rows.reduce((a,v)=>a+v.fuel,0), km=rows.reduce((a,v)=>a+v.km,0), avg=km?tot/km:0, mx=Math.max(...rows.map(v=>v.perKm),0.01);
+  const n=v=>Math.round(v).toLocaleString('fr-FR').replace(/\u202f/g,' '), dk=v=>v.toFixed(2).replace('.',',')+' DT/km';
+  $('dTitle').textContent='⛽ Coût du carburant par km · '+e;
+  $('dSub').innerHTML=`${rows.length} véhicules · source : dépenses Carburant/Coupons + km des missions et locations`;
+  $('dBody').innerHTML=`<div class="fz" style="grid-template-columns:repeat(3,1fr)">
+      <div><span>Dépenses carburant</span><b>${fmt(tot)}</b></div>
+      <div><span>Km parcourus</span><b>${n(km)} km</b></div>
+      <div><span>Coût carburant par km</span><b>${dk(avg)}</b></div></div>
+    <div class="fx-line">Coût du carburant par km = Dépenses carburant du véhicule ÷ Km parcourus<br>Km parcourus = Σ (EndMileage − StartMileage) des missions et locations</div>
+    <table class="fueltbl dv kmt"><thead><tr><th>Véhicule</th><th>Km parcourus</th><th>Carburant</th><th>Coût / km</th><th></th></tr></thead><tbody>
+    ${rows.map(v=>`<tr class="vrow" data-i="${v.i}"><td><span class="veh"><span class="ico">${ICONS[v.ic]}</span><span class="tx"><b>${v.m}</b><small>${v.ic} · ${st.type==='dep'?v.sp:'Département '+v.dep}</small></span></span></td>
+      <td>${n(v.km)} km</td><td>${fmt(v.fuel)}</td>
+      <td class="${v.perKm>avg*1.15?'over':''}"><span class="mini"><i style="width:${v.perKm/mx*100}%;background:${v.perKm>avg*1.15?'#dc2626':'#0d9488'}"></i></span>${dk(v.perKm)}</td><td class="chev">›</td></tr>`).join('')}
+    </tbody></table>
+    <p class="hint">En rouge : plus de 15 % au-dessus du coût carburant par km moyen ${st.type==='dep'?'du département':'de la spécialité'}. Cliquez un véhicule pour voir le détail de ses dépenses.</p>`;
+  $('drawer').classList.add('open');$('dbg').classList.add('open');$('drawer').querySelector('.body').scrollTop=0;
+}
+function openFuelDrawer(e){
+  const F=fuelDetail(e), n=v=>Math.round(v).toLocaleString('fr-FR').replace(/\u202f/g,' '), pr=v=>v.toFixed(3).replace('.',',');
+  $('dTitle').textContent='⛽ Surconsommation carburant · '+e;
+  $('dSub').innerHTML=`${F.rows.length} véhicules · source : CarRental.FuelConsumedLiters, FuelLevel, Car.FuelEstimation, Car.FuelType`;
+  $('dBody').innerHTML=`<div class="fz">
+      <div><span>Estimation moyenne</span><b>${l100(F.est)} L/100</b></div>
+      <div><span>Consommation réelle</span><b>${l100(F.real)} L/100</b></div>
+      <div class="${F.trop?'bad':''}"><span>Litres en trop</span><b>${n(F.trop)} L</b></div>
+      <div class="${F.dt?'bad':''}"><span>Argent perdu</span><b>${fmt(F.dt)}</b></div></div>
+    <div class="fx-line"><b>Formule</b><br>Consommation réelle = FuelConsumedLiters ÷ km × 100 (L/100 km)<br>Surconsommation = Consommation réelle − Estimation carburant (L/100 km)<br>Litres en trop = Surconsommation × km ÷ 100 · Argent perdu = Litres en trop × prix du carburant<br>Prix : Diesel ${pr(FUEL_PRICES.Diesel)} DT/L · Essence ${pr(FUEL_PRICES.Essence)} DT/L
+      <br><br><b>Exemple</b> : 1 000 km parcourus, estimation 10 L/100 km, 135 L consommés<br>• Réelle = 135 ÷ 1 000 × 100 = 13,5 L/100 km<br>• Surconsommation = 13,5 − 10 = 3,5 L/100 km<br>• Litres en trop = 3,5 × 1 000 ÷ 100 = 35 L<br>• Vérification : 135 L consommés − 100 L prévus (1 000 × 10 ÷ 100) = 35 L ✓</div>
+    <table class="fueltbl ftbl"><thead><tr><th>Véhicule</th><th>km</th><th>L/100 km<br>estimé → réel</th><th>Écart</th><th>En trop</th><th>Perdu</th></tr></thead><tbody>
+    ${F.rows.map(v=>`<tr><td><span class="veh"><span class="ico">${ICONS[v.ic]}</span><span class="tx"><b>${v.m}</b><small>${v.ic} · <span class="fuelt ${v.fuel==='Diesel'?'d':'e'}">${v.fuel}</span></small></span></span></td>
+      <td>${n(v.km)}</td><td>${l100(v.est)} → ${l100(v.real)}</td>
+      <td class="${v.gap?'over':'ok'}">${v.gap?'+'+l100(v.gap):'conforme'}</td><td class="${v.trop?'over':'ok'}">${v.trop?n(v.trop)+' L':'0 L'}</td>
+      <td class="${v.dt?'over':'ok'}">${fmt(v.dt)}<small>${pr(v.price)} DT/L</small></td></tr>`).join('')}
+    </tbody></table>
+    <p class="hint">Chaque litre au-dessus de l’estimation carburant du véhicule compte comme surconsommation. Le prix dépend du type de carburant du véhicule (Car.FuelType).</p>`;
+  $('drawer').classList.add('open');$('dbg').classList.add('open');$('drawer').querySelector('.body').scrollTop=0;
+}
+/* ---------- Entretiens: done (CarRepairHistory) and upcoming (CarMaintenance) ---------- */
+/* two planning types (« Type de planning »): par kilométrage or par heures moteur — CarMaintenance.ReminderBy / RecurrenceType */
+let maintMode='all';                                             // filter: all · km · h
+const MAINT_TYPES=['Vidange','Bougies d’allumage','Pneus','Patins de frein','Filtre climatiseur','Filtre à air'];
+const MAINT_EVERY={'Vidange':10000,'Bougies d’allumage':30000,'Pneus':40000,'Patins de frein':20000,'Filtre climatiseur':15000,'Filtre à air':15000};   // km
+const MAINT_EVERY_H={'Vidange':250,'Bougies d’allumage':1000,'Pneus':1500,'Patins de frein':800,'Filtre climatiseur':500,'Filtre à air':500};         // engine hours
+const MAINT_H_SHARE={Livraison:.1,Transport:.2,Frigo:.5,Benne:.5};   // share of maintenance planned by engine hours (mock)
+const MODE_LABEL={km:'Par kilométrage',h:'Par heures moteur'};
+const unitFmt=(v,mode)=>v.toLocaleString('fr-FR').replace(/\u202f/g,' ')+(mode==='h'?' h':' km');
+function maintChips(){
+  return `<div class="depf mchips">${[['all','Tous'],['km','Par kilométrage'],['h','Par heures moteur']].map(([k,l])=>`<button class="chip ${maintMode===k?'on':''}" data-mm="${k}">${k==='h'?'⏱ ':k==='km'?'📏 ':''}${l}</button>`).join('')}</div>`;
+}
+/* upcoming maintenance of each vehicle of a spécialité:
+   left = CarMaintenance.NextDueValue (« Prochain entretien ») − current km or engine hours; soon = left ≤ WarnMeBeforeValue (« Me rappeler avant ») */
+function maintPlan(e){
+  const r=rng('mp'+e), out=[];
+  depVehicles(e).forEach(v=>{const n=1+Math.floor(r()*2), curKm=20000+Math.floor(r()*130000), curH=800+Math.floor(r()*5200);
+    for(let i=0;i<n;i++){const t=MAINT_TYPES[Math.floor(r()*MAINT_TYPES.length)], mode=r()<MAINT_H_SHARE[e]?'h':'km';
+      const cur=mode==='h'?curH:curKm, every=mode==='h'?MAINT_EVERY_H[t]:MAINT_EVERY[t];
+      const next=Math.ceil((cur+1)/every)*every, warn=mode==='h'?[10,25,50][Math.floor(r()*3)]:[200,500,1000][Math.floor(r()*3)];
+      out.push({v,t,mode,cur,every,next,left:next-cur,warn,soon:next-cur<=warn});}});
+  return out.sort((a,b)=>(a.left/a.every)-(b.left/b.every));   // closest first, km and hours mixed
+}
+/* done maintenance: the maintenance spending of the spécialité split into operations, each with its planning type */
+function maintDone(e,total){
+  const r=rng('md'+e), veh=depVehicles(e), rows=[]; let rest=total, n=Math.max(1,Math.min(8,Math.round(total/400)));
+  while(rest>0&&n>0){const a=n===1?rest:Math.round(total/ (n+1) *(0.6+r()*0.8)); rest-=a; n--;
+    rows.push({d:`${String(1+Math.floor(r()*27)).padStart(2,'0')}/${String(1+Math.floor(r()*8)).padStart(2,'0')}/2026`,v:veh[Math.floor(r()*veh.length)],t:MAINT_TYPES[Math.floor(r()*MAINT_TYPES.length)],mode:r()<MAINT_H_SHARE[e]?'h':'km',a,ref:'REF-'+Math.floor(1000+r()*8999)});}
+  return rows.sort((a,b)=>b.a-a.a);
+}
+let maintE=null;
+function openMaintDrawer(e){
+  const x=(lastSS||[]).find(s=>s.e===e); if(!x) return; maintE=e;
+  const keep=o=>maintMode==='all'||o.mode===maintMode;
+  const done=maintDone(e,x.maint).filter(keep), plan=maintPlan(e).filter(keep), soon=plan.filter(q=>q.soon).length;
+  const doneSum=done.reduce((a,o)=>a+o.a,0), all=maintMode==='all';
+  const vc=v=>`<span class="veh"><span class="ico">${ICONS[v.ic]}</span><span class="tx"><b>${v.m}</b><small>${v.ic}</small></span></span>`;
+  const tag=m=>`<span class="ptag ${m}">${m==='h'?'⏱ Heures moteur':'📏 Kilométrage'}</span>`;
+  $('dTitle').textContent='🔧 Entretiens · '+e;
+  $('dSub').innerHTML=`${depVehicles(e).length} véhicules · source : CarRepairHistory (effectués), CarMaintenance (à venir)`;
+  $('dBody').innerHTML=maintChips()+`<div class="fz" style="grid-template-columns:repeat(3,1fr)">
+      <div><span>Entretiens effectués</span><b>${fmt(doneSum)}</b></div>
+      <div><span>Entretiens à venir</span><b>${plan.length}</b></div>
+      <div class="${soon?'bad':''}"><span>À faire bientôt</span><b>${soon}</b></div></div>
+    <h4 class="dh">Entretiens effectués <small>coût réel payé</small></h4>
+    <table class="fueltbl mtbl"><thead><tr><th>Date</th><th>Véhicule</th><th>Type d’entretien</th>${all?'<th>Planning</th>':''}<th>Montant</th></tr></thead><tbody>
+    ${done.map(o=>`<tr><td>${o.d}</td><td>${vc(o.v)}</td><td>${o.t}</td>${all?`<td>${tag(o.mode)}</td>`:''}<td><b>${fmt(o.a)}</b></td></tr>`).join('')||'<tr><td colspan="5" class="hint">Aucun entretien effectué de ce type sur la période.</td></tr>'}</tbody></table>
+    <h4 class="dh">Prochains entretiens planifiés <small>sans prix · ${maintMode==='h'?'heures':maintMode==='km'?'km':'km ou heures'} restant(e)s avant l’entretien</small></h4>
+    <table class="fueltbl mtbl mplan"><thead><tr><th>Véhicule</th><th>Type d’entretien</th><th>Actuel</th><th>Prochain à</th><th>Restant</th></tr></thead><tbody>
+    ${plan.map(q=>`<tr><td>${vc(q.v)}</td><td>${q.t}<small>${all?tag(q.mode)+' · ':''}tous les ${unitFmt(q.every,q.mode)}</small></td><td>${unitFmt(q.cur,q.mode)}</td><td>${unitFmt(q.next,q.mode)}</td><td class="${q.soon?'over':''}">${unitFmt(q.left,q.mode)}${q.soon?'<small>bientôt (≤ '+unitFmt(q.warn,q.mode)+')</small>':''}</td></tr>`).join('')}</tbody></table>
+    <p class="hint">Par kilométrage : km restants = Prochain entretien − Kilométrage actuel. Par heures moteur : heures restantes = Prochain entretien − Heures moteur actuelles. « Bientôt » : restant ≤ « Me rappeler avant » de l’entretien.</p>`;
+  $('drawer').classList.add('open');$('dbg').classList.add('open');$('drawer').querySelector('.body').scrollTop=0;
+}
+const closeD=()=>{$('drawer').classList.remove('open');$('dbg').classList.remove('open')};
+$('dClose').onclick=closeD;$('dbg').onclick=closeD;document.addEventListener('keydown',e=>{if(e.key==='Escape')closeD()});
+$('cmp').onchange=render;
+
+/* tabs */
+document.querySelector('.doc-tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;
+  document.querySelectorAll('.doc-tabs button').forEach(x=>x.classList.toggle('on',x===b));
+  $('tab-mock').classList.toggle('hidden',b.dataset.tab!=='mock');$('tab-orig').classList.toggle('hidden',b.dataset.tab!=='orig')};
+
+/* ---------- data origin tab ---------- */
+$('actors').innerHTML=Object.values(TYPES).map(t=>`<div class="actor"><h4>${t.ic} ${t.n}</h4>
+  <div class="from">Menu : <b>${t.from}</b> · table <span class="src">${t.table}</span> · affiché : ${t.key}</div>
+  <ul>${Object.entries(t.how).map(([s,h])=>`<li>${SUBS[s].n} ← <code>${h}</code></li>`).join('')}</ul>
+  <div class="hint" style="margin-top:6px">Idées : ${t.extra.join(' · ')}</div></div>`).join('');
+$('subsrc').innerHTML=`<thead><tr><th>Sous-rubrique</th><th>Menu d'origine</th><th>Table(s)</th><th>Montant</th><th>Date</th></tr></thead><tbody>`+
+  Object.values(SUBS).map(s=>`<tr><td><b>${s.n}</b>${s.isNew?'<span class="new">NOUVEAU</span>':''}</td><td>${s.menu}</td><td><span class="src">${s.src}</span></td><td>${s.amt}</td><td>${s.date}</td></tr>`).join('')+'</tbody>';
+const sym={y:'<span class="y">●</span>',i:'<span class="i">◐</span>'};
+$('matrix').innerHTML=`<thead><tr><th>Sous-rubrique</th>${Object.values(TYPES).map(t=>`<th>${t.n}</th>`).join('')}</tr></thead><tbody>`+
+  Object.entries(SUBS).map(([k,s])=>`<tr><td><b>${s.n}</b></td>${Object.values(TYPES).map(t=>`<td>${t.subs[k]?sym[t.subs[k]]+`<small>${t.how[k]}</small>`:'<span class="n">—</span>'}</td>`).join('')}</tr>`).join('')+'</tbody>';
+
+const EXIST=[
+ ['Filtres dates + Type + sélection multiple','Existant','POST /fleet/expenses/by-vehicle | by-departments','Catégorie et Article retirés de l’analyse'],
+ ['Type « Spécialité »','Nouveau','à créer : /expenses/by-specialities','Tout passe par le véhicule : Car.SpecialityId (relation à déclarer dans le modèle)'],
+ ['Type « Chauffeur »','Nouveau','à créer : /expenses/by-drivers','Liens directs uniquement : CardAssignment.DriverId, CarAccident.DriverId, Mission.DriverId'],
+ ['Raccourcis de période + comparaison N-1','Nouveau','même API appelée 2 fois (période et période précédente)','aucun changement backend'],
+ ['Filtre par sous-rubrique','Nouveau','paramètre categories[] à ajouter','filtrage côté backend'],
+ ['Total dépenses','Existant','champ total',''],
+ ['Encarts « À retenir »','Nouveau','calcul côté frontend','à partir des totaux déjà reçus'],
+ ['Répartition par entité (donut)','Existant','/…/chart','remplacé par un classement avec la moyenne (plus lisible au-delà de 5 éléments)'],
+ ['Dépenses par sous-rubrique (barres)','Existant','totalByCategory','ajout du % du total'],
+ ['Évolution mensuelle','Nouveau','à créer : /expenses/by-month','GROUP BY mois × sous-rubrique'],
+ ['Détail par type (Sinistres, Maintenance, Documents)','Nouveau','ajouter totalByType dans la réponse par sous-rubrique','AccidentType.Name, MaintenanceType.Name, DocumentsType.Name'],
+ ['Tableau sous-rubrique × entité','Existant','totalByVehicle.items[].totalByCategory','ajout couleur (heatmap), % et ligne total'],
+ ['Détail des opérations (œil)','Existant','/details-by-category, /details-by-vehicle, /details-by-departments…','ajout de la source / menu d’origine'],
+ ['Sous-rubriques « Frais de mission » et « Consommation stock »','Nouveau','nouvelles catégories dans la réponse','Mission.OtherExpenses, StockMovment (sorties)'],
+ ['Export Excel / PDF','Existant (vide)','onExportExcel / onExportPdf ne font qu’un console.log','à implémenter'],
+];
+$('exist').innerHTML='<thead><tr><th>Élément</th><th>Statut</th><th>API</th><th>Données / remarque</th></tr></thead><tbody>'+
+  EXIST.map(r=>`<tr><td><b>${r[0]}</b></td><td>${r[1].startsWith('Nouveau')?'<span class="new">NOUVEAU</span>':'<span style="color:#16a34a;font-weight:600">'+r[1]+'</span>'}</td><td><small>${r[2]}</small></td><td style="text-align:left">${r[3]}</td></tr>`).join('')+'</tbody>';
+
+init();
+</script>
+</body>
+</html>
