@@ -36,7 +36,84 @@ import {
 import { cardCoveredWidth, cardDockLeft, leftPanelCoveredWidth } from '@/features/fleetiq/map-dock';
 import { TripReplayLayer, type TripReplayRequest } from './TripReplay';
 import type { TrajectoryFocus, TrajectoryLayer } from '@/features/fleetiq/trajectory-data';
-import { CalendarClock, Gauge, MapPin, Timer } from 'lucide-react';
+import { CalendarClock, Car, Gauge, MapPin, Milestone, Timer, UserRound } from 'lucide-react';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { ALERT_SEVERITY_STYLE, alertVisual } from '@/features/fleetiq/alert-visuals';
+
+/** Map pin of an alert: its own icon in a severity-coloured badge */
+const alertIconCache = new Map<string, L.DivIcon>();
+function alertIconFor(type: string): L.DivIcon {
+  let icon = alertIconCache.get(type);
+  if (!icon) {
+    const { Icon, severity } = alertVisual(type);
+    const { color } = ALERT_SEVERITY_STYLE[severity];
+    const glyph = renderToStaticMarkup(createElement(Icon, { size: 18, color: '#fff', strokeWidth: 2.4 }));
+    icon = L.divIcon({
+      className: 'trip-replay-pin',
+      html: `<div style="position:relative;width:40px;height:48px;filter:drop-shadow(0 4px 8px rgba(15,27,61,.35))">
+  <svg width="40" height="48" viewBox="0 0 40 48" style="position:absolute;inset:0"><path d="M20 47c-1.2 0-2.2-.7-2.8-1.7L12.5 37H8a7 7 0 0 1-7-7V8a7 7 0 0 1 7-7h24a7 7 0 0 1 7 7v22a7 7 0 0 1-7 7h-4.5l-4.7 8.3c-.6 1-1.6 1.7-2.8 1.7z" fill="${color}" stroke="#fff" stroke-width="2.5"/></svg>
+  <div style="position:absolute;left:0;top:0;width:40px;height:38px;display:flex;align-items:center;justify-content:center">${glyph}</div>
+  <span style="position:absolute;left:50%;top:-6px;width:56px;height:56px;margin-left:-28px;border-radius:50%;background:${color};opacity:.18;animation:fiq-alert-pulse 1.6s ease-out infinite;z-index:-1"></span>
+</div>`,
+      iconSize: [40, 48],
+      iconAnchor: [20, 47],
+    });
+    alertIconCache.set(type, icon);
+  }
+  return icon;
+}
+
+/** Alert table row selected: alert icon at its position + details tooltip */
+function AlertFocusLayer({ focus }: { focus: TrajectoryFocus }) {
+  const alert = focus.alert!;
+  const { Icon, severity } = alertVisual(alert.type);
+  const sev = ALERT_SEVERITY_STYLE[severity];
+  return (
+    <Marker
+      key={`alert-${focus.position[0]}-${focus.position[1]}-${focus.time}`}
+      position={focus.position}
+      icon={alertIconFor(alert.type)}
+      zIndexOffset={3000}
+    >
+      <Tooltip permanent direction="top" offset={[0, -50]} opacity={1} className="fiq-traj-tooltip">
+        <div className="fiq-font w-[268px] text-[#0F1B3D]">
+          <div className="flex items-start gap-2.5 mb-2.5">
+            <span
+              className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+              style={{ background: sev.soft, color: sev.color }}
+            >
+              <Icon className="w-[18px] h-[18px]" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-extrabold leading-tight whitespace-normal">{alert.type}</div>
+              <span
+                className="inline-flex items-center gap-1 mt-1 px-1.5 py-px rounded-full text-[10.5px] font-bold"
+                style={{ background: sev.soft, color: sev.text }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: sev.color }} />
+                {sev.label}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <TipRow icon={<Car className="w-3.5 h-3.5" />} label="Véhicule" value={alert.vehicle} />
+            {alert.driver && <TipRow icon={<UserRound className="w-3.5 h-3.5" />} label="Conducteur" value={alert.driver} />}
+            <TipRow icon={<CalendarClock className="w-3.5 h-3.5" />} label="Date / heure" value={alert.date} />
+            <TipRow icon={<Gauge className="w-3.5 h-3.5" />} label="Vitesse" value={alert.speed} />
+            <TipRow icon={<Milestone className="w-3.5 h-3.5" />} label="Kilométrage" value={alert.mileage} />
+          </div>
+          {focus.place && (
+            <div className="mt-2 pt-2 border-t border-[#EEF1F7] flex items-start gap-1.5 text-[11.5px] text-[#5B6B8C] whitespace-normal leading-snug">
+              <MapPin className="w-3.5 h-3.5 mt-px shrink-0 text-[#2F6BFF]" />
+              <span>{focus.place}</span>
+            </div>
+          )}
+        </div>
+      </Tooltip>
+    </Marker>
+  );
+}
 
 const STOP_ICON = L.divIcon({
   className: 'trip-replay-pin',
@@ -59,6 +136,22 @@ function TipRow({ icon, label, value }: { icon: React.ReactNode; label: string; 
       <span className="text-[12.5px] font-extrabold tabular-nums whitespace-nowrap">{value}</span>
     </div>
   );
+}
+
+/** Small STOP sign with a ring in the vehicle colour (Stop & Circulation view) */
+const stopIconCache = new Map<string, L.DivIcon>();
+function stopIconFor(color: string): L.DivIcon {
+  let icon = stopIconCache.get(color);
+  if (!icon) {
+    icon = L.divIcon({
+      className: 'trip-replay-pin',
+      html: `<svg width="26" height="26" viewBox="0 0 26 26" style="filter:drop-shadow(0 2px 4px rgba(15,27,61,.35))"><circle cx="13" cy="13" r="12" fill="${color}"/><path d="M9.3 4.5h7.4l4.8 4.8v7.4l-4.8 4.8H9.3l-4.8-4.8V9.3z" fill="#E5484D" stroke="#fff" stroke-width="1.4"/><text x="13" y="15.6" text-anchor="middle" font-family="Plus Jakarta Sans,Arial,sans-serif" font-size="5.6" font-weight="800" fill="#fff">STOP</text></svg>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 13],
+    });
+    stopIconCache.set(color, icon);
+  }
+  return icon;
 }
 
 /** Highlight of the trajectory row / chart point: marker + always-visible tooltip */
@@ -287,7 +380,8 @@ function MapController({
   useEffect(() => {
     if (fitBoundsPoints?.length) {
       map.fitBounds(fitBoundsPoints, {
-        paddingTopLeft: [selectedVehicle && cardShown ? Math.max(380, cardCoveredWidth(map) + 32) : 380, 48],
+        // Keep the fitted area clear of the docked card or of the open left table
+        paddingTopLeft: [selectedVehicle && cardShown ? Math.max(380, cardCoveredWidth(map) + 32) : Math.max(48, leftPanelCoveredWidth(map) + 32), 64],
         paddingBottomRight: [48, 48],
         animate: true,
         duration: 1.2,
@@ -304,7 +398,10 @@ function MapController({
       flyToBesideCard(map, mapCenter, mapCenterZoom ?? 16, 1.5, !!selectedVehicle && cardShown);
       onMapCenterChange();
     } else if (selectedVehicle && flownToRef.current !== selectedVehicle.id) {
-      flyToBesideCard(map, selectedVehicle.coordinates, 15, 1.5, cardShown);
+      // Keep the user's zoom when already close (e.g. after opening a cluster) so
+      // neighbouring vehicles stay on screen; otherwise zoom to street level.
+      const z = map.getZoom();
+      flyToBesideCard(map, selectedVehicle.coordinates, z >= 13 ? z : 16, 1.2, cardShown);
     }
     flownToRef.current = selectedVehicle?.id ?? null;
   }, [
@@ -1056,7 +1153,7 @@ export function MapView({
       if (dragged) return;
       if (
         target.closest(
-          '.leaflet-vehicle-info-popup, .custom-marker, .trip-replay-panel, .fiq-popover, [data-vehicle-row], [data-left-panel]'
+          '.leaflet-vehicle-info-popup, .custom-marker, .vehicle-cluster-icon, .marker-cluster, .trip-replay-panel, .fiq-popover, [data-vehicle-row], [data-left-panel]'
         )
       ) {
         return;
@@ -1503,7 +1600,49 @@ export function MapView({
           )}
 
         {trajectoryLayers
-          .filter((l) => l.vehicleId !== tripReplay?.vehicle.id)
+          .filter((l) => l.runs || l.stops)
+          .map((l) => (
+            <Fragment key={`stoprun-layer-${l.vehicleId}`}>
+              {(l.runs ?? []).map((run, i) => (
+                <Fragment key={`run-${l.vehicleId}-${i}`}>
+                  <Polyline positions={run} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9, interactive: false }} />
+                  <Polyline positions={run} pathOptions={{ color: l.color, weight: 4.5, opacity: 0.95, lineCap: 'round', lineJoin: 'round' }}>
+                    <Tooltip sticky direction="top" opacity={1} className="fiq-traj-tooltip">
+                      <span className="fiq-font inline-flex items-center gap-1.5 text-[12px] font-extrabold text-[#0F1B3D]">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
+                        {l.label} · Circulation
+                      </span>
+                    </Tooltip>
+                  </Polyline>
+                </Fragment>
+              ))}
+              {(l.stops ?? []).map((st) => (
+                <Marker key={st.id} position={st.position} icon={stopIconFor(l.color)} zIndexOffset={2500}>
+                  <Tooltip direction="top" offset={[0, -14]} opacity={1} className="fiq-traj-tooltip">
+                    <div className="fiq-font w-[220px] text-[#0F1B3D]">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full" style={{ background: l.color }} />
+                        <span className="text-[12.5px] font-extrabold">{l.label}</span>
+                        <span className="ml-auto px-1.5 py-px rounded-full text-[10.5px] font-extrabold" style={{ background: '#FDECEC', color: '#9B1C22' }}>
+                          Arrêt
+                        </span>
+                      </div>
+                      <div className="text-[11.5px] text-[#5B6B8C]">
+                        {new Date(st.start).toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} ·{' '}
+                        <b className="text-[#0F1B3D]">
+                          {st.durationMin >= 60 ? `${Math.floor(st.durationMin / 60)} h ${String(Math.round(st.durationMin % 60)).padStart(2, '0')}` : `${Math.round(st.durationMin)} min`}
+                        </b>
+                      </div>
+                      <div className="text-[11.5px] text-[#5B6B8C] whitespace-normal mt-0.5">{st.place}</div>
+                    </div>
+                  </Tooltip>
+                </Marker>
+              ))}
+            </Fragment>
+          ))}
+
+        {trajectoryLayers
+          .filter((l) => !l.runs && !l.stops && l.vehicleId !== tripReplay?.vehicle.id)
           .map((l) => (
             <Fragment key={`traj-layer-${l.vehicleId}`}>
               <Polyline positions={l.path} pathOptions={{ color: '#ffffff', weight: 8, opacity: 0.9, interactive: false }} />
@@ -1518,7 +1657,12 @@ export function MapView({
             </Fragment>
           ))}
 
-        {trajectoryFocus && <TrajectoryFocusLayer focus={trajectoryFocus} />}
+        {trajectoryFocus &&
+          (trajectoryFocus.kind === 'Alert' && trajectoryFocus.alert ? (
+            <AlertFocusLayer focus={trajectoryFocus} />
+          ) : (
+            <TrajectoryFocusLayer focus={trajectoryFocus} />
+          ))}
 
         {tripReplay && (
           <TripReplayLayer key={tripReplay.key} replay={tripReplay} onClose={onCloseTripReplay} />
@@ -1551,47 +1695,91 @@ function VehicleClusterLayer({
 }) {
   const criticalKey = Array.from(criticalIds).sort().join(',');
   const map = useMap();
+  // Latest callbacks / state without rebuilding the cluster group
+  const onSelectRef = useRef(onSelectVehicle);
+  onSelectRef.current = onSelectVehicle;
+  const drawModeRef = useRef(drawMode);
+  drawModeRef.current = drawMode;
+  const groupRef = useRef<L.MarkerClusterGroup | null>(null);
+  const markersRef = useRef<Map<string, { marker: L.Marker; vehicle: Vehicle; inGroup: boolean }>>(new Map());
 
+  // One cluster group for the life of the map: clicking a cluster zooms in /
+  // spiderfies, and nothing collapses again when a vehicle gets selected.
   useEffect(() => {
     if (!map.getPane('vehicleClusters')) {
       map.createPane('vehicleClusters');
       map.getPane('vehicleClusters')!.style.zIndex = '450';
     }
-
     const group = L.markerClusterGroup({
       showCoverageOnHover: false,
       maxClusterRadius: 55,
       spiderfyOnMaxZoom: true,
+      // From street level every vehicle is shown individually
+      disableClusteringAtZoom: 16,
       clusterPane: 'vehicleClusters',
-      iconCreateFunction: (cluster) =>
-        createVehicleClusterIcon(cluster.getChildCount()),
+      iconCreateFunction: (cluster) => createVehicleClusterIcon(cluster.getChildCount()),
     });
-
-    vehicles.forEach((vehicle) => {
-      const isSelected = selectedVehicleId === vehicle.id;
-      const marker = L.marker(vehicle.coordinates, {
-        icon: createVehicleIcon(vehicle, isSelected, criticalIds.has(vehicle.id)),
-        pane: 'vehicleClusters',
-        zIndexOffset: isSelected ? 1000 : 0,
-      });
-      marker.bindTooltip(vehicle.matricule || vehicle.name, {
-        direction: 'top',
-        offset: [0, -32],
-        opacity: 0.95,
-      });
-      marker.on('click', () => {
-        if (!drawMode) onSelectVehicle(vehicle);
-      });
-      group.addLayer(marker);
-    });
-
+    groupRef.current = group;
     map.addLayer(group);
+    const markers = markersRef.current;
     return () => {
+      markers.forEach(({ marker, inGroup }) => {
+        if (!inGroup) map.removeLayer(marker);
+      });
+      markers.clear();
       map.removeLayer(group);
+      groupRef.current = null;
     };
+  }, [map]);
+
+  // Sync markers in place (add / remove / update icon) — no full rebuild
+  useEffect(() => {
+    const group = groupRef.current;
+    if (!group) return;
+    const markers = markersRef.current;
+    const wanted = new Set(vehicles.map((v) => v.id));
+
+    markers.forEach((entry, id) => {
+      if (!wanted.has(id)) {
+        if (entry.inGroup) group.removeLayer(entry.marker);
+        else map.removeLayer(entry.marker);
+        markers.delete(id);
+      }
+    });
+
+    for (const vehicle of vehicles) {
+      const isSelected = selectedVehicleId === vehicle.id;
+      const icon = createVehicleIcon(vehicle, isSelected, criticalIds.has(vehicle.id));
+      let entry = markers.get(vehicle.id);
+      if (!entry) {
+        const marker = L.marker(vehicle.coordinates, { icon, pane: 'vehicleClusters' });
+        marker.bindTooltip(vehicle.matricule || vehicle.name, { direction: 'top', offset: [0, -32], opacity: 0.95 });
+        marker.on('click', () => {
+          const current = markersRef.current.get(vehicle.id)?.vehicle ?? vehicle;
+          if (!drawModeRef.current) onSelectRef.current(current);
+        });
+        entry = { marker, vehicle, inGroup: false };
+        markers.set(vehicle.id, entry);
+      } else {
+        entry.vehicle = vehicle;
+        entry.marker.setLatLng(vehicle.coordinates);
+        entry.marker.setIcon(icon);
+      }
+      entry.marker.setZIndexOffset(isSelected ? 1000 : 0);
+      // The selected vehicle is never hidden inside a cluster
+      if (isSelected && entry.inGroup) {
+        group.removeLayer(entry.marker);
+        map.addLayer(entry.marker);
+        entry.inGroup = false;
+      } else if (!isSelected && !entry.inGroup) {
+        if (map.hasLayer(entry.marker)) map.removeLayer(entry.marker);
+        group.addLayer(entry.marker);
+        entry.inGroup = true;
+      }
+    }
     // criticalKey stands in for criticalIds (a new Set each render)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, vehicles, selectedVehicleId, onSelectVehicle, drawMode, criticalKey]);
+  }, [map, vehicles, selectedVehicleId, criticalKey]);
 
   return null;
 }

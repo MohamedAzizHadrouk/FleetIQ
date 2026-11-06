@@ -219,7 +219,16 @@ export { km as kmBetweenPoints };
 /** What the map highlights when a trajectory row / chart point is selected */
 export interface TrajectoryFocus {
   vehicleId: string;
-  kind: SegmentKind | 'Point';
+  kind: SegmentKind | 'Point' | 'Alert';
+  /** Alert table: what was raised (shown with its own icon, not the vehicle) */
+  alert?: {
+    type: string;
+    vehicle: string;
+    date: string;
+    speed: string;
+    mileage: string;
+    driver?: string;
+  };
   position: LatLng;
   /** epoch ms */
   time: number;
@@ -236,6 +245,10 @@ export interface TrajectoryLayer {
   label: string;
   color: string;
   path: LatLng[];
+  /** Stop & Circulation view: every stop of the vehicle, drawn as a STOP icon */
+  stops?: { id: string; position: LatLng; start: number; durationMin: number; place: string }[];
+  /** Stop & Circulation view: each driving segment drawn separately */
+  runs?: LatLng[][];
 }
 
 /** Distinct, design-system friendly colours for several trajectories at once */

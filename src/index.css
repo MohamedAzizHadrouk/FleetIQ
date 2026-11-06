@@ -138,3 +138,9 @@
   border-top-color: #fff;
   filter: drop-shadow(0 1px 0 #E3E9F4);
 }
+
+/* Alert pin on the map (alert table selection) */
+@keyframes fiq-alert-pulse {
+  0% { transform: scale(0.55); opacity: 0.35; }
+  100% { transform: scale(1.25); opacity: 0; }
+}

@@ -693,8 +693,23 @@ function AppShell() {
     }
   }, []);
 
+  /** Left table hidden while a trajectory animation plays (restored when its popup is closed) */
+  const [listHiddenByReplay, setListHiddenByReplay] = useState(false);
+  const closeTripReplay = useCallback(() => {
+    setTripReplay(null);
+    if (listHiddenByReplay) {
+      setIsVehicleListCollapsed(false);
+      setListHiddenByReplay(false);
+    }
+  }, [listHiddenByReplay]);
+
   /** ▶ in the trajectory table: animate the vehicle along its real road trajectory */
   const handleReplayTrajectory = useCallback((vehicle: Vehicle, traj: VehicleTrajectory) => {
+    // The animation gets the whole map: hide the left table until the popup is closed
+    if (!isVehicleListCollapsed) {
+      setIsVehicleListCollapsed(true);
+      setListHiddenByReplay(true);
+    }
     const firstRun = traj.segments.find((g) => g.kind === 'Circulation');
     const startAt = firstRun?.start ?? traj.start;
     setTrajectoryFocus(null);
@@ -709,7 +724,7 @@ function AppShell() {
       durationMin: Math.max(1, Math.round(traj.summary.runMin)),
       path: traj.path,
     });
-  }, []);
+  }, [isVehicleListCollapsed]);
 
   const handleCloseVehicleCard = useCallback(() => {
     setTrajectoryFocus(null);
@@ -717,11 +732,12 @@ function AppShell() {
     setVehicleCardOpen(false);
     setTripReplay(null);
     setTrackingPath(null);
-    if (listHiddenByCard) {
+    if (listHiddenByCard || listHiddenByReplay) {
       setIsVehicleListCollapsed(false);
       setListHiddenByCard(false);
+      setListHiddenByReplay(false);
     }
-  }, [listHiddenByCard]);
+  }, [listHiddenByCard, listHiddenByReplay]);
 
   const handleFocusVehicleOnMap = useCallback(
     (vehicle: Vehicle, zoom = 16) => {
@@ -1022,7 +1038,7 @@ function AppShell() {
               tripReplay={tripReplay}
               trajectoryFocus={trajectoryFocus}
               trajectoryLayers={trajectoryLayers}
-              onCloseTripReplay={() => setTripReplay(null)}
+              onCloseTripReplay={closeTripReplay}
               onMapCenterChange={() => setMapCenter(null)}
               basemap={mapOverlays.basemap}
               drawMode={mapOverlays.drawMode}
@@ -1384,8 +1400,9 @@ function AppShell() {
                   onOpenAlertConfiguration={handleOpenAlertConfiguration}
                   onTrajectoryFocus={handleTrajectoryFocus}
                   onTrajectoryLayersChange={setTrajectoryLayers}
+                  onFitMapToPoints={(points) => mapOverlays.setFitBoundsPoints(points)}
                   onReplayTrajectory={handleReplayTrajectory}
-                  onStopReplay={() => setTripReplay(null)}
+                  onStopReplay={closeTripReplay}
                   replayVehicleId={tripReplay?.vehicle.id ?? null}
                   onSaveTrajectoryRoute={(vehicle, traj, name) => {
                     mapOverlays.addRouteFromDraft({

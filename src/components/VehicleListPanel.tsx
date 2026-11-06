@@ -56,6 +56,7 @@ import {
   TrajectoryDetailsRow,
   TrajectoryGraphRow,
   TrajectoryGroupHeader,
+  StopRunGroupHeader,
   type TrajectoryViewMode,
 } from './TrajectoryGroup';
 import { FleetReminderCell } from './suivie/FleetReminderCell';
@@ -135,6 +136,8 @@ interface VehicleListPanelProps {
   replayVehicleId?: string | null;
   /** Trajectory table: save the driven path as a route overlay with the given title */
   onSaveTrajectoryRoute?: (vehicle: Vehicle, traj: VehicleTrajectory, name: string) => void;
+  /** Frame the map on these points (beside the table) */
+  onFitMapToPoints?: (points: [number, number][]) => void;
   /** Trajectory view: every displayed vehicle trajectory to draw on the map */
   onTrajectoryLayersChange?: (layers: TrajectoryLayer[]) => void;
   onClearTrajectoryTrack?: () => void;
@@ -284,33 +287,6 @@ function SortableHeader({
   );
 }
 
-function FilterBulkActions({
-  onSelectAll,
-  onClear,
-}: {
-  onSelectAll: () => void;
-  onClear: () => void;
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <button
-        type="button"
-        onClick={onSelectAll}
-        className="px-2 py-1 rounded-md text-[11px] font-medium text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 transition-colors"
-      >
-        Tout sélectionner
-      </button>
-      <button
-        type="button"
-        onClick={onClear}
-        className="px-2 py-1 rounded-md text-[11px] font-medium text-slate-700 bg-slate-100 border border-slate-300 hover:bg-slate-200 hover:border-slate-400 transition-colors"
-      >
-        Tout désélectionner
-      </button>
-    </div>
-  );
-}
-
 /** Main views of the tracking panel (Commandes opens only from "Demande position actuelle") */
 const TAB_ACTIONS: { id: SuivieAction; label: string; icon: typeof Activity }[] = [
   { id: 'suivie_generale', label: 'Suivi général', icon: Activity },
@@ -320,6 +296,46 @@ const TAB_ACTIONS: { id: SuivieAction; label: string; icon: typeof Activity }[] 
 ];
 
 const PAGE_SIZES = [25, 50, 100];
+
+/** Accent / case-insensitive match for dropdown searches */
+const fold = (v: string) => v.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const matchesQuery = (label: string, query: string) => !query.trim() || fold(label).includes(fold(query.trim()));
+
+/** Search field shown at the top of a filter dropdown */
+function DropdownSearch({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+}) {
+  return (
+    <div className="relative">
+      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#8A94A6] pointer-events-none" />
+      <input
+        type="text"
+        autoFocus
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        className="w-full h-8 pl-8 pr-7 text-[12.5px] text-[#0F1B3D] bg-[#F7F9FF] border border-[#E3E9F4] rounded-lg placeholder:text-[#8A94A6] focus:outline-none focus:bg-white focus:border-[#2F6BFF] focus:ring-4 focus:ring-[#2F6BFF]/10"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Effacer la recherche"
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 w-5 h-5 rounded-md text-[#8A94A6] hover:text-[#0F1B3D] hover:bg-[#F0F3F9] inline-flex items-center justify-center"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** Page numbers with ellipsis: 1 … 4 5 6 … 20 */
 function pageWindow(page: number, total: number): (number | '…')[] {
@@ -601,6 +617,7 @@ export function VehicleListPanel({
   replayVehicleId = null,
   onSaveTrajectoryRoute,
   onTrajectoryLayersChange,
+  onFitMapToPoints,
 }: VehicleListPanelProps) {
   const [width, setWidth] = useState(() =>
     typeof window !== 'undefined'
@@ -641,6 +658,15 @@ export function VehicleListPanel({
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
   const [isAlertDropdownOpen, setIsAlertDropdownOpen] = useState(false);
   const [isColumnSettingsOpen, setIsColumnSettingsOpen] = useState(false);
+  /** Search inside the "Types d'alerte" and "Colonnes affichées" dropdowns */
+  const [alertTypeSearch, setAlertTypeSearch] = useState('');
+  const [columnSearch, setColumnSearch] = useState('');
+  useEffect(() => {
+    if (!isAlertDropdownOpen) setAlertTypeSearch('');
+  }, [isAlertDropdownOpen]);
+  useEffect(() => {
+    if (!isColumnSettingsOpen) setColumnSearch('');
+  }, [isColumnSettingsOpen]);
   const [vehicleSearch, setVehicleSearch] = useState('');
   const [tableSearch, setTableSearch] = useState('');
 
@@ -668,6 +694,8 @@ export function VehicleListPanel({
   const [trajToast, setTrajToast] = useState<string | null>(null);
   /** Vehicles whose trajectory is hidden on the map (all shown by default) */
   const [hiddenTrajVehicles, setHiddenTrajVehicles] = useState<Set<string>>(() => new Set());
+  /** Stop & Circulation: overall view of one vehicle only (others temporarily off the map) */
+  const [soloVehicleId, setSoloVehicleId] = useState<string | null>(null);
   /** "Enregistrer comme route" dialog */
   const [routeDraft, setRouteDraft] = useState<{ vehicleId: string; name: string } | null>(null);
   /** Visible width of the scrollable table, so group rows stay pinned to it */
@@ -794,6 +822,7 @@ export function VehicleListPanel({
   useEffect(() => {
     setSelectedTrajRowId(null);
     setSelectedSampleT(null);
+    setSoloVehicleId(null);
     onTrajectoryFocus?.(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeAction]);
@@ -842,6 +871,12 @@ export function VehicleListPanel({
 
   const scopedRows = useMemo(() => {
     if (!applied) return [] as SuivieRow[];
+    if (
+      applied.action === 'stop_circulation' &&
+      applied.vehicleIds.size === 0 &&
+      applied.departments.size === 0
+    )
+      return [] as SuivieRow[];
     const all = buildRowsForAction(applied.action, vehicles);
     const filtered = applySuivieFilters(all, applied);
     if (applied.action !== 'commandes') return filtered;
@@ -937,7 +972,7 @@ export function VehicleListPanel({
 
   /** Vehicles listed in the trajectory table, in display order, with their map colour */
   const trajVehicleOrder = useMemo(() => {
-    if (activeAction !== 'trajectoire') return [] as string[];
+    if (activeAction !== 'trajectoire' && activeAction !== 'stop_circulation') return [] as string[];
     const seen: string[] = [];
     for (const row of displayTableRows) if (!seen.includes(row.vehicleId)) seen.push(row.vehicleId);
     return seen;
@@ -947,13 +982,15 @@ export function VehicleListPanel({
 
   useEffect(() => {
     if (!onTrajectoryLayersChange) return;
-    if (activeAction !== 'trajectoire') {
+    if (activeAction !== 'trajectoire' && activeAction !== 'stop_circulation') {
       onTrajectoryLayersChange([]);
       return;
     }
+    const withStops = activeAction === 'stop_circulation';
     const layers: TrajectoryLayer[] = [];
     trajVehicleOrder.forEach((vehicleId, i) => {
       if (hiddenTrajVehicles.has(vehicleId)) return;
+      if (withStops && soloVehicleId && vehicleId !== soloVehicleId) return;
       const vehicle = vehicleById[vehicleId];
       const traj = vehicle ? getVehicleTrajectory(vehicle) : null;
       if (!vehicle || !traj || traj.path.length < 2) return;
@@ -962,10 +999,36 @@ export function VehicleListPanel({
         label: vehicle.matricule || vehicle.name,
         color: TRAJECTORY_COLORS[i % TRAJECTORY_COLORS.length],
         path: traj.path,
+        ...(withStops && {
+          runs: traj.segments.filter((g) => g.kind === 'Circulation' && g.path.length > 1).map((g) => g.path),
+          stops: traj.segments
+            .filter((g) => g.kind === 'Stop')
+            .map((g) => ({
+              id: g.id,
+              position: g.position,
+              start: g.start.getTime(),
+              durationMin: g.durationMin,
+              place: g.place,
+            })),
+        }),
       });
     });
     onTrajectoryLayersChange(layers);
-  }, [activeAction, trajVehicleOrder, hiddenTrajVehicles, vehicleById, onTrajectoryLayersChange]);
+  }, [activeAction, trajVehicleOrder, hiddenTrajVehicles, soloVehicleId, vehicleById, onTrajectoryLayersChange]);
+
+  // Stop & Circulation: frame all displayed vehicles when the tab opens or the selection changes
+  const stopRunFitKey = activeAction === 'stop_circulation' ? trajVehicleOrder.join(',') : '';
+  useEffect(() => {
+    if (!stopRunFitKey || !onFitMapToPoints) return;
+    const points: [number, number][] = [];
+    for (const id of trajVehicleOrder) {
+      const v = vehicleById[id];
+      const t = v ? getVehicleTrajectory(v) : null;
+      if (t) points.push(...t.segments.map((g) => g.position));
+    }
+    if (points.length) onFitMapToPoints(points);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopRunFitKey]);
 
   const stopCirculationDistanceTotalKm = useMemo(() => {
     if (activeAction !== 'stop_circulation') return null;
@@ -1039,11 +1102,19 @@ export function VehicleListPanel({
     });
   };
 
+  /** "Toutes les alertes" checks every type; unchecking any type unchecks it */
+  const ALL_ALERTS = ALERT_TYPES[0];
   const toggleAlertType = (type: string) => {
     setDraftAlertTypes((prev) => {
+      if (type === ALL_ALERTS) {
+        return prev.has(ALL_ALERTS) ? new Set() : new Set([...ALERT_TYPES]);
+      }
       const next = new Set(prev);
       if (next.has(type)) next.delete(type);
       else next.add(type);
+      const everyType = ALERT_TYPES.slice(1).every((t) => next.has(t));
+      if (everyType) next.add(ALL_ALERTS);
+      else next.delete(ALL_ALERTS);
       return next;
     });
   };
@@ -1121,31 +1192,44 @@ export function VehicleListPanel({
   const panelW = isDesktop ? width : typeof window !== 'undefined' ? window.innerWidth : 800;
   const compactTabs = panelW < 520;
 
-  /** Multi-vehicle selection kept aside while Trajectoire (single vehicle) is open */
+  /**
+   * Selection of the general views (Suivi général / Alertes), kept aside while
+   * Trajectoire (one vehicle) or Stop & Circulation (none by default) is open
+   */
   const multiSelectionRef = useRef<Set<string> | null>(null);
+  const isScopedView = (a: SuivieAction) => a === 'trajectoire' || a === 'stop_circulation';
 
   /** Switch the panel view (tab bar) */
   const selectAction = (action: SuivieAction) => {
-    if (action === 'trajectoire' && draftAction !== 'trajectoire') {
-      multiSelectionRef.current = new Set(draftVehicles);
-      if (draftVehicles.size !== 1) {
-        const preferred =
-          (selectedVehicleId && vehicles.some((v) => v.id === selectedVehicleId) && selectedVehicleId) ||
-          [...draftVehicles][0] ||
-          vehicles[0]?.id;
-        if (preferred) setDraftVehicles(new Set([preferred]));
+    let nextVehicles = draftVehicles;
+    if (action !== draftAction) {
+      if (!isScopedView(draftAction) && isScopedView(action)) {
+        multiSelectionRef.current = new Set(draftVehicles);
       }
-    } else if (action !== 'trajectoire' && draftAction === 'trajectoire' && multiSelectionRef.current) {
-      setDraftVehicles(multiSelectionRef.current);
-      multiSelectionRef.current = null;
+      if (action === 'stop_circulation') {
+        // Stop & Circulation starts with no vehicle selected
+        nextVehicles = new Set();
+      } else if (action === 'trajectoire') {
+        if (draftVehicles.size !== 1) {
+          const preferred =
+            (selectedVehicleId && vehicles.some((v) => v.id === selectedVehicleId) && selectedVehicleId) ||
+            [...draftVehicles][0] ||
+            vehicles[0]?.id;
+          nextVehicles = preferred ? new Set([preferred]) : new Set();
+        }
+      } else if (isScopedView(draftAction) && multiSelectionRef.current) {
+        nextVehicles = multiSelectionRef.current;
+        multiSelectionRef.current = null;
+      }
     }
+    if (nextVehicles !== draftVehicles) setDraftVehicles(nextVehicles);
     setDraftAction(action);
     setApplied((prev) =>
       prev
-        ? { ...prev, action }
+        ? { ...prev, action, vehicleIds: new Set(nextVehicles) }
         : {
             action,
-            vehicleIds: new Set(draftVehicles),
+            vehicleIds: new Set(nextVehicles),
             departments: new Set(),
             startDate: draftStartDate,
             endDate: draftEndDate,
@@ -1325,6 +1409,39 @@ export function VehicleListPanel({
     return v ? getVehicleTrajectory(v) : null;
   };
 
+  /** Row click in the alert table: the alert icon at its position, with its details */
+  const handleAlertRowClick = (row: SuivieRow) => {
+    const vehicle = vehicleById[row.vehicleId];
+    const lat = row['alertLat'];
+    const lng = row['alertLng'];
+    if (!vehicle || typeof lat !== 'number' || typeof lng !== 'number') return;
+    const position: [number, number] = [lat, lng];
+    if (selectedTrajRowId === row.id) {
+      // second click on the same alert: hide it from the map
+      setSelectedTrajRowId(null);
+      onTrajectoryFocus?.(null);
+      return;
+    }
+    setSelectedTrajRowId(row.id);
+    onClearTrajectoryTrack?.();
+    onTrajectoryFocus?.({
+      vehicleId: vehicle.id,
+      kind: 'Alert',
+      position,
+      time: new Date(String(row.filterDate)).getTime(),
+      speed: parseInt(String(row['Speed']), 10) || 0,
+      place: String(row['Address'] ?? ''),
+      alert: {
+        type: String(row['Type']),
+        vehicle: vehicle.matricule || vehicle.name,
+        date: String(row['Date']),
+        speed: String(row['Speed']),
+        mileage: String(row['Mileage']),
+        driver: vehicle.driver || undefined,
+      },
+    });
+  };
+
   /** Row click in the trajectory table: show the stop / segment on the map */
   const handleTrajRowClick = (row: SuivieRow) => {
     const vehicle = vehicleById[row.vehicleId];
@@ -1410,6 +1527,105 @@ export function VehicleListPanel({
   }, [trajToast]);
 
   /** Trajectory table body: rows grouped by vehicle with header actions */
+  /** Points framing a vehicle's whole trajectory (driving lines + stops) */
+  const trajFramePoints = (traj: VehicleTrajectory) =>
+    [...traj.path, ...traj.segments.filter((g) => g.kind === 'Stop').map((g) => g.position)] as [number, number][];
+
+  /** 👁 — hiding a vehicle hides its whole trajectory, highlight and animation included */
+  const toggleVehicleShown = (vehicleId: string) => {
+    const hiding = !hiddenTrajVehicles.has(vehicleId);
+    setHiddenTrajVehicles((prev) => {
+      const next = new Set(prev);
+      if (next.has(vehicleId)) next.delete(vehicleId);
+      else next.add(vehicleId);
+      return next;
+    });
+    if (!hiding) return;
+    if (soloVehicleId === vehicleId) setSoloVehicleId(null);
+    const rowOfVehicle = selectedTrajRowId?.startsWith(`trj-${vehicleId}-`);
+    if (rowOfVehicle || selectedVehicleId === vehicleId) {
+      setSelectedTrajRowId(null);
+      setSelectedSampleT(null);
+      onTrajectoryFocus?.(null);
+      onClearTrajectoryTrack?.();
+    }
+    if (replayVehicleId === vehicleId) onStopReplay?.();
+  };
+
+  /** Click on a vehicle: overall view of its stops & driving segments only */
+  const focusVehicleOverall = (vehicleId: string, toggle = true) => {
+    const vehicle = vehicleById[vehicleId];
+    const traj = trajectoryOf(vehicleId);
+    if (!vehicle || !traj) return;
+    if (toggle && soloVehicleId === vehicleId) {
+      // second click: back to every vehicle
+      setSoloVehicleId(null);
+      const all: [number, number][] = [];
+      for (const id of trajVehicleOrder) {
+        const t = trajectoryOf(id);
+        if (t && !hiddenTrajVehicles.has(id)) all.push(...t.segments.map((g) => g.position));
+      }
+      if (all.length) onFitMapToPoints?.(all);
+      return;
+    }
+    if (hiddenTrajVehicles.has(vehicleId)) {
+      setHiddenTrajVehicles((prev) => {
+        const next = new Set(prev);
+        next.delete(vehicleId);
+        return next;
+      });
+    }
+    setSoloVehicleId(vehicleId);
+    onFitMapToPoints?.(trajFramePoints(traj));
+  };
+
+  /** Stop & Circulation body: rows grouped by vehicle, one colour per vehicle */
+  const renderStopRunGroups = (rows: SuivieRow[]) => {
+    const order: string[] = [];
+    const byVehicle: Record<string, SuivieRow[]> = {};
+    for (const row of rows) {
+      if (!byVehicle[row.vehicleId]) {
+        byVehicle[row.vehicleId] = [];
+        order.push(row.vehicleId);
+      }
+      byVehicle[row.vehicleId].push(row);
+    }
+    return order.map((vehicleId) => {
+      const vehicle = vehicleById[vehicleId];
+      if (!vehicle) return null;
+      const traj = trajectoryOf(vehicleId);
+      const key = `sr:${vehicleId}`;
+      const collapsed = collapsedGroups.has(key);
+      const groupRows = [...byVehicle[vehicleId]].sort((a, b) =>
+        String(a.filterDate).localeCompare(String(b.filterDate))
+      );
+      return (
+        <Fragment key={key}>
+          <StopRunGroupHeader
+            vehicle={vehicle}
+            traj={traj}
+            colCount={colCount}
+            viewportWidth={tableViewportW}
+            color={trajColorOf(vehicleId)}
+            collapsed={collapsed}
+            onToggleCollapse={() => toggleGroupCollapse(key)}
+            shownOnMap={!hiddenTrajVehicles.has(vehicleId)}
+            onToggleShown={() => toggleVehicleShown(vehicleId)}
+            focused={soloVehicleId === vehicleId}
+            dimmed={!!soloVehicleId && soloVehicleId !== vehicleId}
+            onFocus={() => {
+              setSelectedTrajRowId(null);
+              onTrajectoryFocus?.(null);
+              onClearTrajectoryTrack?.();
+              focusVehicleOverall(vehicleId);
+            }}
+          />
+          {!collapsed && groupRows.map((row) => renderDataRow(row))}
+        </Fragment>
+      );
+    });
+  };
+
   const renderTrajectoryGroups = (rows: SuivieRow[]) => {
     const order: string[] = [];
     const byVehicle: Record<string, SuivieRow[]> = {};
@@ -1456,14 +1672,7 @@ export function VehicleListPanel({
             onSaveRoute={() => saveTrajRoute(vehicleId)}
             color={trajColorOf(vehicleId)}
             shownOnMap={!hiddenTrajVehicles.has(vehicleId)}
-            onToggleShown={() =>
-              setHiddenTrajVehicles((prev) => {
-                const next = new Set(prev);
-                if (next.has(vehicleId)) next.delete(vehicleId);
-                else next.add(vehicleId);
-                return next;
-              })
-            }
+            onToggleShown={() => toggleVehicleShown(vehicleId)}
           />
           {!collapsed && traj && trajDetails.has(vehicleId) && (
             <TrajectoryDetailsRow vehicle={vehicle} traj={traj} colCount={colCount} viewportWidth={tableViewportW} />
@@ -1488,7 +1697,8 @@ export function VehicleListPanel({
 
   const renderDataRow = (row: SuivieRow) => {
     const isGenerale = activeAction === 'suivie_generale';
-    const isTraj = activeAction === 'trajectoire';
+    const isTraj =
+      activeAction === 'trajectoire' || activeAction === 'stop_circulation' || activeAction === 'alertes';
     const commonClasses = `transition-colors border-b border-slate-100 ${
       isTraj
         ? selectedTrajRowId === row.id
@@ -1512,7 +1722,11 @@ export function VehicleListPanel({
         data-vehicle-row=""
         className={commonClasses}
         onClick={() => {
-          if (activeAction === 'trajectoire') handleTrajRowClick(row);
+          if (activeAction === 'stop_circulation') {
+            if (soloVehicleId !== row.vehicleId) setSoloVehicleId(row.vehicleId);
+            handleTrajRowClick(row);
+          } else if (activeAction === 'trajectoire') handleTrajRowClick(row);
+          else if (activeAction === 'alertes') handleAlertRowClick(row);
           else selectRowVehicle(row);
         }}
       >
@@ -1722,35 +1936,15 @@ export function VehicleListPanel({
                           className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden flex flex-col max-h-[400px] w-full min-w-[240px] max-w-[min(360px,calc(100vw-2rem))]"
                         >
                           <div className="p-2 border-b border-slate-100">
-                            <div className="relative">
-                              <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-400" />
-                              <input
-                                type="text"
-                                placeholder="Matricule, IMEI, nom…"
-                                value={vehicleSearch}
-                                onChange={(e) =>
-                                  setVehicleSearch(e.target.value)
-                                }
-                                className="w-full pl-7 pr-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500"
-                              />
-                            </div>
-                            {draftAction === 'trajectoire' ? (
+                            <DropdownSearch
+                              value={vehicleSearch}
+                              onChange={setVehicleSearch}
+                              placeholder="Matricule, IMEI, nom…"
+                            />
+                            {draftAction === 'trajectoire' && (
                               <p className="mt-1.5 px-1 text-[11px] font-semibold text-[#2F6BFF]">
                                 Trajectoire : choisissez un seul véhicule
                               </p>
-                            ) : (
-                            <div className="flex items-center justify-between mt-1.5 px-1">
-                              <FilterBulkActions
-                                onSelectAll={() =>
-                                  setDraftVehicles(
-                                    new Set(
-                                      filteredVehiclesList.map((v) => v.id)
-                                    )
-                                  )
-                                }
-                                onClear={() => setDraftVehicles(new Set())}
-                              />
-                            </div>
                             )}
                             <p className="mt-1 px-1 text-[10px] text-slate-500">
                               {draftVehicles.size} sélectionné
@@ -1761,6 +1955,25 @@ export function VehicleListPanel({
                             </p>
                           </div>
                           <div className="overflow-y-auto flex-1 p-1">
+                            {draftAction !== 'trajectoire' && !vehicleSearch.trim() && vehicles.length > 0 && (
+                              <label className="flex items-center gap-2 px-2 py-1.5 mb-0.5 border-b border-[#EEF1F7] hover:bg-slate-50 rounded-lg cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={draftVehicles.size === vehicles.length}
+                                  onChange={() =>
+                                    setDraftVehicles(
+                                      draftVehicles.size === vehicles.length
+                                        ? new Set()
+                                        : new Set(vehicles.map((v) => v.id))
+                                    )
+                                  }
+                                  className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                                />
+                                <span className="text-xs font-semibold text-[#0F1B3D]">
+                                  Tous les véhicules ({vehicles.length})
+                                </span>
+                              </label>
+                            )}
                             {filteredVehiclesList.length === 0 ? (
                               <p className="px-3 py-6 text-center text-xs text-slate-500">
                                 Aucun véhicule trouvé
@@ -1845,7 +2058,7 @@ export function VehicleListPanel({
                         <span className="text-slate-700 font-medium whitespace-nowrap">Types</span>
                         {draftAlertTypes.size > 0 && (
                           <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-[#2F6BFF] text-white text-[10.5px] font-bold inline-flex items-center justify-center">
-                            {draftAlertTypes.size}
+                            {draftAlertTypes.has(ALL_ALERTS) ? 'Tous' : draftAlertTypes.size}
                           </span>
                         )}
                         <ChevronDown
@@ -1861,18 +2074,31 @@ export function VehicleListPanel({
                             initial={{ opacity: 0, y: 5 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 5 }}
-                            className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-slate-200 z-50 overflow-hidden w-full min-w-[220px] max-h-[280px] flex flex-col"
+                            className="fiq-font absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-[#E3E9F4] z-50 overflow-hidden w-[260px] max-h-[340px] flex flex-col"
                           >
-                            <div className="p-1.5 border-b border-slate-100 flex justify-between gap-1.5">
-                              <FilterBulkActions
-                                onSelectAll={() =>
-                                  setDraftAlertTypes(new Set([...ALERT_TYPES]))
-                                }
-                                onClear={() => setDraftAlertTypes(new Set())}
+                            <div className="p-2 border-b border-[#EEF1F7] flex flex-col gap-1.5">
+                              <DropdownSearch
+                                value={alertTypeSearch}
+                                onChange={setAlertTypeSearch}
+                                placeholder="Rechercher un type d'alerte…"
                               />
                             </div>
                             <div className="overflow-y-auto p-1">
-                              {ALERT_TYPES.map((type) => (
+                              {!alertTypeSearch.trim() && (
+                                <label className="flex items-center gap-1.5 px-1.5 py-1.5 mb-0.5 border-b border-[#EEF1F7] hover:bg-slate-50 rounded cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={draftAlertTypes.has(ALL_ALERTS)}
+                                    onChange={() => toggleAlertType(ALL_ALERTS)}
+                                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 w-3 h-3"
+                                  />
+                                  <span className="text-[11px] font-semibold text-[#0F1B3D]">{ALL_ALERTS}</span>
+                                </label>
+                              )}
+                              {ALERT_TYPES.slice(1).filter((t) => matchesQuery(t, alertTypeSearch)).length === 0 && (
+                                <p className="px-2 py-4 text-center text-[12px] text-[#8A94A6]">Aucun type trouvé</p>
+                              )}
+                              {ALERT_TYPES.slice(1).filter((t) => matchesQuery(t, alertTypeSearch)).map((type) => (
                                 <label
                                   key={type}
                                   className="flex items-center gap-1.5 px-1.5 py-1 hover:bg-slate-50 rounded cursor-pointer"
@@ -1938,7 +2164,7 @@ export function VehicleListPanel({
                             initial={{ opacity: 0, y: -4 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: -4 }}
-                            className="absolute top-full mt-2 right-0 w-72 max-h-80 bg-white rounded-xl shadow-xl border border-slate-200 z-[100] flex flex-col overflow-hidden"
+                            className="fiq-font absolute top-full mt-2 right-0 w-72 max-h-[380px] bg-white rounded-xl shadow-xl border border-[#E3E9F4] z-[100] flex flex-col overflow-hidden"
                           >
                             <div className="px-3 py-2 border-b border-slate-100 flex items-center justify-between">
                               <span className="text-xs font-semibold text-slate-800">
@@ -1953,8 +2179,18 @@ export function VehicleListPanel({
                                 Réinitialiser
                               </button>
                             </div>
+                            <div className="px-2 pt-2 pb-1.5 border-b border-[#EEF1F7]">
+                              <DropdownSearch
+                                value={columnSearch}
+                                onChange={setColumnSearch}
+                                placeholder="Rechercher une colonne…"
+                              />
+                            </div>
                             <div className="overflow-y-auto p-1.5 flex-1">
-                              {allColumns.map((col) => {
+                              {allColumns.filter((c) => matchesQuery(c.label, columnSearch)).length === 0 && (
+                                <p className="px-2 py-4 text-center text-[12px] text-[#8A94A6]">Aucune colonne trouvée</p>
+                              )}
+                              {allColumns.filter((c) => matchesQuery(c.label, columnSearch)).map((col) => {
                                 const checked = !!prefs.visible[col.id];
                                 const visibleCount = Object.values(
                                   prefs.visible
@@ -2032,13 +2268,20 @@ export function VehicleListPanel({
                           colSpan={Math.max(colCount, 1)}
                           className="px-4 py-12 text-center text-sm text-slate-500"
                         >
-                          {tableSearch.trim()
+                          {activeAction === 'stop_circulation' &&
+                          applied &&
+                          applied.vehicleIds.size === 0 &&
+                          applied.departments.size === 0
+                            ? 'Sélectionnez un ou plusieurs véhicules pour afficher leurs arrêts et circulations.'
+                            : tableSearch.trim()
                             ? 'Aucun résultat pour cette recherche dans le tableau.'
                             : 'Aucun résultat pour ces filtres.'}
                         </td>
                       </tr>
                     ) : activeAction === 'trajectoire' && !groupByColumnId ? (
                       renderTrajectoryGroups(pageRows)
+                    ) : activeAction === 'stop_circulation' && !groupByColumnId ? (
+                      renderStopRunGroups(pageRows)
                     ) : groupByColumnId && displayRowsByGroup ? (
                       Object.entries(displayRowsByGroup).map(
                         ([groupKey, rows]) => {

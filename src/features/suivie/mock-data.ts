@@ -172,6 +172,9 @@ export type TrackingRow = SuivieRowBase & {
 };
 
 export type AlertRow = SuivieRowBase & {
+  /** Where the alert was raised (on the vehicle's real route) */
+  alertLat: number;
+  alertLng: number;
   Vehicle: string;
   Date: string;
   Type: string;
@@ -413,6 +416,7 @@ export function buildAlertRows(vehicles: Vehicle[]): AlertRow[] {
     const { department, rand } = enrichVehicleMeta(vehicle, index);
     const speedVal = vehicleSpeedKmh(vehicle, rand);
     const types = alertTypesForVehicle(vehicle, speedVal);
+    const segments = getVehicleTrajectory(vehicle)?.segments ?? [];
     const count =
       vehicle.status === 'offline'
         ? 1 + Math.floor(rand() * 2)
@@ -428,16 +432,29 @@ export function buildAlertRows(vehicles: Vehicle[]): AlertRow[] {
         type === 'Dépassement de vitesse'
           ? Math.max(speedVal, 110 + Math.floor(rand() * 40))
           : speedVal;
+      // Speeding happens while driving, the other alerts anywhere on the route
+      const pool =
+        type === 'Dépassement de vitesse'
+          ? segments.filter((g) => g.kind === 'Circulation')
+          : segments;
+      const seg = pool.length ? pool[(i * 3 + index) % pool.length] : null;
+      const position: [number, number] = seg
+        ? seg.kind === 'Circulation' && seg.path.length > 2
+          ? seg.path[Math.floor(seg.path.length / 2)]
+          : seg.position
+        : vehicle.coordinates;
       rows.push({
         id: `alt-${vehicle.id}-${i}`,
         vehicleId: vehicle.id,
         vehicleName: vehicle.name,
         department,
         filterDate: when.toISOString(),
+        alertLat: position[0],
+        alertLng: position[1],
         Vehicle: vehicle.matricule || vehicle.name,
         Date: formatDisplay(when),
         Type: type,
-        Address: vehicle.location,
+        Address: seg?.place ?? vehicle.location,
         Speed: `${speed} km/h`,
         Mileage: `${Math.floor(10000 + rand() * 70000)} km`,
         Chassis: `VIN${pad(1000 + index, 4)}`,
@@ -451,56 +468,26 @@ export function buildAlertRows(vehicles: Vehicle[]): AlertRow[] {
 export function buildRunStopRows(vehicles: Vehicle[]): RunStopRow[] {
   const rows: RunStopRow[] = [];
   vehicles.forEach((vehicle, index) => {
-    const { department, rand } = enrichVehicleMeta(vehicle, index);
-    const speedVal = vehicleSpeedKmh(vehicle, rand);
-    const count = 1 + Math.floor(rand() * 2);
-    for (let i = 0; i < count; i++) {
-      const begin = hoursAgo(rand, 20);
-      // Latest segment matches current status; older ones may vary for history
-      const isRun =
-        i === 0
-          ? vehicle.status === 'active'
-          : vehicle.status === 'offline'
-            ? false
-            : rand() > 0.45;
-      const periodMin = isRun
-        ? 15 + Math.floor(rand() * 120)
-        : 20 + Math.floor(rand() * 180);
-      let status: string;
-      if (i === 0 && vehicle.status === 'idle') status = 'Ralenti';
-      else if (isRun) status = 'Circulation';
-      else if (rand() < 0.15) status = 'Ralenti';
-      else status = 'Stop';
-      const avgSpeed =
-        status === 'Circulation'
-          ? Math.max(
-              15,
-              Math.floor(speedVal * (0.7 + rand() * 0.4)) ||
-                20 + Math.floor(rand() * 50)
-            )
-          : status === 'Ralenti'
-            ? 3 + Math.floor(rand() * 8)
-            : 0;
+    const { department } = enrichVehicleMeta(vehicle, index);
+    // Same real road segments as the trajectory view and the map
+    const segments = getVehicleTrajectory(vehicle)?.segments ?? [];
+    segments.forEach((seg) => {
       rows.push({
-        id: `rs-${vehicle.id}-${i}`,
+        id: seg.id,
         vehicleId: vehicle.id,
         vehicleName: vehicle.name,
         department,
-        filterDate: begin.toISOString(),
-        Status: status,
+        filterDate: seg.start.toISOString(),
+        Status: seg.kind,
         Matricule: vehicle.matricule || vehicle.name,
-        Place: vehicle.location,
-        Distance: `${
-          status === 'Circulation'
-            ? Math.floor(5 + rand() * 400)
-            : Math.floor(rand() * 3)
-        } km`,
-        Period: `${periodMin} min`,
-        StartDate: formatDisplay(begin),
-        AvgSpeed: `${avgSpeed} km/h`,
+        Place: seg.place,
+        Distance: `${seg.distanceKm.toFixed(1)} km`,
+        Period: formatHms(seg.durationMin),
+        StartDate: formatDisplay(seg.start),
+        AvgSpeed: `${seg.avgSpeed} km/h`,
         Action: 'Zoom',
       });
-    }
+    });
   });
   return rows;
 }

@@ -19,6 +19,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  X,
   Fuel,
   Gauge,
   Hash,
@@ -450,5 +451,109 @@ function TipLine({ icon, label, value }: { icon: ReactNode; label: string; value
       <span className="flex-1 text-[11.5px] text-[#5B6B8C] whitespace-nowrap">{label}</span>
       <span className="text-[12.5px] font-extrabold tabular-nums whitespace-nowrap">{value}</span>
     </div>
+  );
+}
+
+/** Stop & Circulation: one header row per vehicle, in the vehicle's map colour */
+export function StopRunGroupHeader({
+  vehicle,
+  traj,
+  colCount,
+  viewportWidth,
+  color,
+  collapsed,
+  onToggleCollapse,
+  shownOnMap,
+  onToggleShown,
+  onFocus,
+  focused = false,
+  dimmed = false,
+}: {
+  vehicle: Vehicle;
+  traj: VehicleTrajectory | null;
+  colCount: number;
+  viewportWidth?: number | null;
+  color: string;
+  /** This vehicle is shown alone on the map (overall view) */
+  focused?: boolean;
+  /** Another vehicle is shown alone: this one is off the map for now */
+  dimmed?: boolean;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+  shownOnMap: boolean;
+  onToggleShown: () => void;
+  onFocus: () => void;
+}) {
+  const sum = traj?.summary;
+  const runs = traj ? traj.segments.filter((g) => g.kind === 'Circulation').length : 0;
+  return (
+    <tr
+      className={`border-y border-[#E3E9F4] transition-opacity ${dimmed ? 'opacity-55' : ''}`}
+      style={{ background: focused ? `${color}1F` : `${color}0F` }}
+    >
+      <td colSpan={colCount} className="px-2 py-1.5" style={{ boxShadow: `inset 4px 0 0 ${color}` }}>
+        <div className="fiq-font flex items-center gap-2 min-w-0" style={pinned(viewportWidth)}>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Déplier' : 'Replier'}
+            className="w-6 h-6 rounded-md hover:bg-white flex items-center justify-center shrink-0"
+          >
+            {collapsed ? <ChevronRight className="w-4 h-4" style={{ color }} /> : <ChevronDown className="w-4 h-4" style={{ color }} />}
+          </button>
+          <button
+            type="button"
+            onClick={onFocus}
+            title={focused ? 'Revenir à tous les véhicules' : 'Vue globale des arrêts et circulations de ce véhicule'}
+            aria-pressed={focused}
+            className="flex items-center gap-2 min-w-0 flex-1 text-left rounded-lg hover:bg-white/70 px-1 py-0.5"
+          >
+            <span className="w-7 h-7 rounded-lg bg-white border flex items-center justify-center shrink-0" style={{ borderColor: `${color}55` }}>
+              <FleetiqVehicleIcon type={toFleetiqType(vehicle.iconType)} size={22} />
+            </span>
+            <span className="min-w-0">
+              <span className="flex items-center gap-1.5 text-[13px] font-extrabold text-[#0F1B3D] min-w-0">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0 ring-2 ring-white" style={{ background: shownOnMap ? color : '#C9D1E0' }} />
+                <span className="truncate">{vehicle.matricule || vehicle.name}</span>
+                {focused && (
+                  <span
+                    className="shrink-0 px-1.5 py-px rounded-full text-[10.5px] font-extrabold text-white"
+                    style={{ background: color }}
+                  >
+                    Vue globale
+                  </span>
+                )}
+              </span>
+              {sum && (
+                <span className="flex items-center gap-2 text-[11px] text-[#5B6B8C] truncate">
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-sm bg-[#E5484D]" />
+                    {sum.stops} arrêts · {formatHms(sum.stopMin).slice(0, 5)}
+                  </span>
+                  <span className="inline-flex items-center gap-1">
+                    <span className="w-3 h-0.5 rounded" style={{ background: color }} />
+                    {runs} circulations · {num(sum.distanceKm)} km
+                  </span>
+                </span>
+              )}
+            </span>
+          </button>
+          {focused && (
+            <HeaderButton label="Revenir à tous les véhicules" onClick={onFocus}>
+              <X className="w-3.5 h-3.5" />
+              <span>Tous</span>
+            </HeaderButton>
+          )}
+          <HeaderButton
+            label={shownOnMap ? 'Masquer sur la carte' : 'Afficher sur la carte'}
+            onClick={onToggleShown}
+            active={!shownOnMap}
+          >
+            {shownOnMap ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          </HeaderButton>
+        </div>
+      </td>
+    </tr>
   );
 }
