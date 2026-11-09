@@ -144,3 +144,15 @@
   0% { transform: scale(0.55); opacity: 0.35; }
   100% { transform: scale(1.25); opacity: 0; }
 }
+
+/* Guided tour: element the user is testing ("Essayer") */
+.fiq-tour-target {
+  outline: 3px solid #16A34A !important;
+  outline-offset: 3px;
+  border-radius: 12px;
+  animation: fiq-tour-pulse 1.6s ease-in-out infinite;
+}
+@keyframes fiq-tour-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.35); }
+  50% { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0); }
+}

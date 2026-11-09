@@ -178,6 +178,7 @@ function GroupByDropZone({
       ref={setNodeRef}
       title="Glissez un en-tête de colonne ici pour grouper le tableau"
       data-tour="filter-group"
+      data-grouped={groupByColumnId ? 'true' : 'false'}
       className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[220px]' : 'w-[104px]'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
         isOver
           ? 'border-blue-500 bg-blue-50'

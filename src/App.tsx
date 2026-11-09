@@ -1472,7 +1472,9 @@ function AppShell() {
           }
 
             <TrackingTour
-              run={activeTour === 'tracking' && activeSection === 'suivie'}
+              run={activeTour === 'tracking'}
+              inTracking={activeSection === 'suivie'}
+              onReturnToTracking={() => setActiveSection('suivie')}
               onFinish={() => setActiveTour(null)}
             />
 
