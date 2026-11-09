@@ -77,7 +77,7 @@ export const MODULE_REGISTRY: ModuleConfig[] = [
     title: 'Module Tracking',
     description: 'Suivi en temps réel des véhicules',
     icon: MapPin,
-    available: false,
+    available: true,
     accentClass: 'bg-sky-50 text-sky-600',
   },
   {

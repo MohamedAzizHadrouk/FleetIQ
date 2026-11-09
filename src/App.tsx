@@ -31,6 +31,7 @@ import { NotFoundPage } from './pages/NotFoundPage';
 import { useMapOverlays } from './hooks/useMapOverlays';
 import { WelcomeScreen } from './components/onboarding/WelcomeScreen';
 import { ModuleSelection } from './components/onboarding/ModuleSelection';
+import { TrackingTour } from './components/onboarding/TrackingTour';
 import type { OnboardingModuleId } from './components/onboarding/module-registry';
 
 import { SUIVIE_DEPARTMENTS } from './features/suivie/column-defs';
@@ -571,11 +572,19 @@ function AppShell() {
   const [hideBadges, setHideBadges] = useState(false);
   const mapOverlays = useMapOverlays();
 
-  const handleModuleSelect = useCallback((_moduleId: OnboardingModuleId) => {
+  /** Guided tour running (react-joyride), started from the module selection */
+  const [activeTour, setActiveTour] = useState<OnboardingModuleId | null>(null);
+  const handleModuleSelect = useCallback((moduleId: OnboardingModuleId) => {
     setPhase('app');
     setActiveSection('suivie');
-    setIsVehicleListCollapsed(true);
     setIsMonitoringCollapsed(true);
+    if (moduleId === 'tracking') {
+      // The tour walks through the tracking table: keep it open
+      setIsVehicleListCollapsed(false);
+      setActiveTour('tracking');
+    } else {
+      setIsVehicleListCollapsed(true);
+    }
   }, []);
 
   const hasOverlayPanel =
@@ -1461,6 +1470,11 @@ function AppShell() {
                 </div>
               </button>
           }
+
+            <TrackingTour
+              run={activeTour === 'tracking' && activeSection === 'suivie'}
+              onFinish={() => setActiveTour(null)}
+            />
 
             {/* AI Chat Panel */}
             <AIFleetDashboard

@@ -177,6 +177,7 @@ function GroupByDropZone({
     <div
       ref={setNodeRef}
       title="Glissez un en-tête de colonne ici pour grouper le tableau"
+      data-tour="filter-group"
       className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[220px]' : 'w-[104px]'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
         isOver
           ? 'border-blue-500 bg-blue-50'
@@ -371,7 +372,7 @@ function TableFooter({
   const navBtn =
     'w-8 h-8 rounded-lg inline-flex items-center justify-center text-[#5B6B8C] hover:bg-[#F0F3F9] hover:text-[#0F1B3D] disabled:opacity-30 disabled:hover:bg-transparent transition-colors';
   return (
-    <div className="fiq-font shrink-0 border-t border-[#E3E9F4] bg-white px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div data-tour="footer" className="fiq-font shrink-0 border-t border-[#E3E9F4] bg-white px-3 py-2 flex flex-wrap items-center gap-x-3 gap-y-2">
       {/* Rows per page + counter */}
       <div className="flex items-center gap-2.5 min-w-0">
         <select
@@ -1829,6 +1830,8 @@ export function VehicleListPanel({
         <button
           type="button"
           onClick={onToggleCollapse}
+          data-tour="panel-toggle"
+          aria-label={isCollapsed ? 'Afficher le tableau' : 'Masquer le tableau'}
           className="absolute -right-3 top-1/2 -translate-y-1/2 z-40 w-6 h-12 bg-white/95 backdrop-blur-sm hover:bg-white border border-slate-200 rounded-r-lg flex items-center justify-center transition-colors shadow-lg"
         >
           {isCollapsed ? (
@@ -1848,7 +1851,7 @@ export function VehicleListPanel({
           >
             <div className="fiq-font shrink-0 border-b border-[#E3E9F4] bg-white overflow-visible relative z-20">
               {/* Navigation entre les vues — onglets pleine largeur, soulignés */}
-              <nav aria-label="Vues du suivi" className="fiq-font flex border-b border-[#E3E9F4] px-1">
+              <nav aria-label="Vues du suivi" data-tour="tabs" className="fiq-font flex border-b border-[#E3E9F4] px-1">
                 {TAB_ACTIONS.map((tab) => {
                   const active = activeAction === tab.id;
                   const Icon = tab.icon;
@@ -1857,6 +1860,7 @@ export function VehicleListPanel({
                       key={tab.id}
                       type="button"
                       onClick={() => selectAction(tab.id)}
+                      data-tour={`tab-${tab.id}`}
                       aria-current={active ? 'page' : undefined}
                       aria-label={tab.label}
                       title={compactTabs ? tab.label : undefined}
@@ -1894,6 +1898,7 @@ export function VehicleListPanel({
                 {/* Une seule ligne — filtres, recherche, regroupement, exports */}
                 <div className="w-full flex flex-wrap items-center gap-1.5">
                   <div
+                    data-tour="filter-vehicles"
                     className="order-2 relative flex-[1_1_170px] min-w-[140px] max-w-[260px]"
                     ref={vehicleDropdownRef}
                   >
@@ -2027,9 +2032,10 @@ export function VehicleListPanel({
                   </div>
 
                   {draftAction !== 'suivie_generale' && (
+                    <div data-tour="filter-period" className="order-5 shrink-0 flex">
                     <DateTimeRangePicker
                       iconOnly
-                      className="order-5 shrink-0"
+                      className="shrink-0"
                       start={draftStartDate}
                       end={draftEndDate}
                       onChange={(s, e) => {
@@ -2038,10 +2044,12 @@ export function VehicleListPanel({
                       }}
                       placeholder="Période"
                     />
+                    </div>
                   )}
 
                   {draftAction === 'alertes' && (
                     <div
+                      data-tour="filter-alert-types"
                       className="order-4 relative shrink-0"
                       ref={alertDropdownRef}
                     >
@@ -2121,7 +2129,7 @@ export function VehicleListPanel({
                     </div>
                   )}
 
-                  <div className="order-3 relative flex-[1_1_140px] min-w-[100px]">
+                  <div data-tour="filter-search" className="order-3 relative flex-[1_1_140px] min-w-[100px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A94A6] pointer-events-none" />
                     <input
                       type="text"
@@ -2140,7 +2148,7 @@ export function VehicleListPanel({
                     onClear={clearGroupBy}
                   />
 
-                  <div className="order-6 flex items-center gap-1.5 shrink-0">
+                  <div data-tour="filter-columns" className="order-6 flex items-center gap-1.5 shrink-0">
                     <div className="relative shrink-0" ref={columnSettingsRef}>
                       <button
                         type="button"
@@ -2229,6 +2237,7 @@ export function VehicleListPanel({
 
             <div
               ref={tableScrollRef}
+              data-tour="table"
               className="flex-1 overflow-x-auto overflow-y-auto bg-white min-w-0"
               onScroll={() => {
                 if (openMenu) setOpenMenu(null);

@@ -354,7 +354,7 @@ export function MapControls({
           <SlidersHorizontal className="w-5 h-5" />
         </button>
       ) : (
-        <div className="flex flex-col items-center gap-1 bg-white/95 backdrop-blur-xl rounded-2xl p-1.5 shadow-lg border border-slate-200">
+        <div data-tour="map-controls" className="flex flex-col items-center gap-1 bg-white/95 backdrop-blur-xl rounded-2xl p-1.5 shadow-lg border border-slate-200">
           <div className="relative">
             <button
               type="button"
