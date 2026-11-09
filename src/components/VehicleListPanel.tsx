@@ -1658,7 +1658,13 @@ export function VehicleListPanel({
             collapsed={collapsed}
             onToggleCollapse={() => toggleGroupCollapse(key)}
             mode={mode}
-            onModeChange={(m) => setTrajModes((prev) => ({ ...prev, [vehicleId]: m }))}
+            onModeChange={(m) => {
+              setTrajModes((prev) => ({ ...prev, [vehicleId]: m }));
+              // Graph mode opens the trip details by default
+              if (m === 'graph' && mode !== 'graph') {
+                setTrajDetails((prev) => (prev.has(vehicleId) ? prev : new Set(prev).add(vehicleId)));
+              }
+            }}
             detailsOpen={trajDetails.has(vehicleId)}
             onToggleDetails={() =>
               setTrajDetails((prev) => {
@@ -1731,6 +1737,17 @@ export function VehicleListPanel({
           else if (activeAction === 'alertes') handleAlertRowClick(row);
           else selectRowVehicle(row);
         }}
+        onContextMenu={
+          isGenerale
+            ? (e) => {
+                // Right-click opens the row's action menu at the cursor
+                e.preventDefault();
+                e.stopPropagation();
+                const { x, y } = clampMenuPosition(e.clientX, e.clientY);
+                setOpenMenu({ rowId: row.id, vehicleId: row.vehicleId, x, y });
+              }
+            : undefined
+        }
       >
         {tableColumns.map((col) => {
           const raw = row[col.id];
