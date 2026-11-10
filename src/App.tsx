@@ -719,6 +719,22 @@ function AppShell() {
     [selectedVehicleId]
   );
 
+  /** Row click in Suivi général: zoom on the vehicle and show its small card above it */
+  const handleVehiclePreview = useCallback(
+    (vehicle: Vehicle) => {
+      if (vehicle.id !== selectedVehicleId) {
+        setTripReplay(null);
+        setTrackingPath(null);
+      }
+      setVehicleCardOpen(false);
+      setSelectedVehicleId(vehicle.id);
+      setQuickCardOpen(true);
+      setMapCenterZoom(16);
+      setMapCenter(vehicle.coordinates);
+    },
+    [selectedVehicleId]
+  );
+
   /** Was the vehicle list open before a map marker hid it? Restored when the card closes. */
   const [listHiddenByCard, setListHiddenByCard] = useState(false);
 
@@ -1475,6 +1491,7 @@ function AppShell() {
                   statusFilter={statusFilter}
                   isAdmin
                   onFocusVehicleOnMap={handleFocusVehicleOnMap}
+                  onPreviewVehicle={handleVehiclePreview}
                   onShowTrajectoryTrack={handleShowTrajectoryTrack}
                   onClearTrajectoryTrack={handleClearTrajectoryTrack}
                   onOpenDetailedReport={handleOpenDetailedReport}

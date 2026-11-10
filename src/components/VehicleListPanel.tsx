@@ -126,6 +126,8 @@ interface VehicleListPanelProps {
   statusFilter?: Set<VehicleStatus>;
   isAdmin?: boolean;
   onFocusVehicleOnMap?: (vehicle: Vehicle, zoom?: number) => void;
+  /** Row click in Suivi général: zoom on the vehicle and show its small card on the map */
+  onPreviewVehicle?: (vehicle: Vehicle) => void;
   onShowTrajectoryTrack?: (path: [number, number][]) => void;
   /** Trajectory table: highlight a stop / segment / chart point on the map */
   onTrajectoryFocus?: (focus: TrajectoryFocus | null) => void;
@@ -612,6 +614,7 @@ export function VehicleListPanel({
   statusFilter = EMPTY_STATUS_FILTER,
   isAdmin = true,
   onFocusVehicleOnMap,
+  onPreviewVehicle,
   onShowTrajectoryTrack,
   onClearTrajectoryTrack,
   onOpenDetailedReport,
@@ -660,6 +663,8 @@ export function VehicleListPanel({
 
   // Applied filter state
   const [applied, setApplied] = useState<AppliedSuivieFilters | null>(null);
+  /** Alertes opens with no filter and an empty list: alerts load only after « Appliquer » */
+  const [alertsAwaitingApply, setAlertsAwaitingApply] = useState(false);
 
   const [isVehicleDropdownOpen, setIsVehicleDropdownOpen] = useState(false);
   const [isAlertDropdownOpen, setIsAlertDropdownOpen] = useState(false);
@@ -877,6 +882,7 @@ export function VehicleListPanel({
 
   const scopedRows = useMemo(() => {
     if (!applied) return [] as SuivieRow[];
+    if (applied.action === 'alertes' && alertsAwaitingApply) return [] as SuivieRow[];
     if (
       (applied.action === 'stop_circulation' || applied.action === 'trajectoire') &&
       applied.vehicleIds.size === 0 &&
@@ -889,7 +895,7 @@ export function VehicleListPanel({
     const scope = applied.vehicleIds;
     const mine = sentCommands.filter((c) => scope.size === 0 || scope.has(c.vehicleId));
     return [...mine, ...filtered];
-  }, [applied, vehicles, sentCommands]);
+  }, [applied, vehicles, sentCommands, alertsAwaitingApply]);
 
   const tableRows = useMemo(() => {
     let rows = scopedRows;
@@ -1083,13 +1089,15 @@ export function VehicleListPanel({
    */
   const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((x) => b.has(x));
   const filtersDirty =
-    !!applied &&
+    (draftAction === 'alertes' && alertsAwaitingApply) ||
+    (!!applied &&
     (applied.action !== draftAction ||
       !sameSet(applied.vehicleIds, draftVehicles) ||
       applied.startDate !== draftStartDate ||
       applied.endDate !== draftEndDate ||
-      (draftAction === 'alertes' && !sameSet(applied.alertTypes, draftAlertTypes)));
+      (draftAction === 'alertes' && !sameSet(applied.alertTypes, draftAlertTypes))));
   const applyDraft = () => {
+    setAlertsAwaitingApply(false);
     setApplied({
       action: draftAction,
       vehicleIds: new Set(draftVehicles),
@@ -1181,6 +1189,7 @@ export function VehicleListPanel({
       setDraftStartDate(startDate);
       setDraftEndDate(endDate);
       setDraftAlertTypes(alertTypes);
+      setAlertsAwaitingApply(false);
       setApplied({
         action,
         vehicleIds,
@@ -1214,19 +1223,25 @@ export function VehicleListPanel({
   /** Switch the panel view (tab bar) */
   const selectAction = (action: SuivieAction) => {
     let nextVehicles = draftVehicles;
+    // Views that start with their own (empty) vehicle selection
+    const ownsSelection = (a: SuivieAction) => isScopedView(a) || a === 'alertes';
     if (action !== draftAction) {
-      if (!isScopedView(draftAction) && isScopedView(action)) {
+      if (!ownsSelection(draftAction) && ownsSelection(action)) {
         multiSelectionRef.current = new Set(draftVehicles);
       }
-      if (action === 'stop_circulation' || action === 'trajectoire') {
-        // Stop & Circulation and Trajectoire start empty: the user picks the vehicles
+      if (action === 'stop_circulation' || action === 'trajectoire' || action === 'alertes') {
+        // These views start empty: the user picks the filters, then « Appliquer »
         nextVehicles = new Set();
-      } else if (isScopedView(draftAction) && multiSelectionRef.current) {
+      } else if (ownsSelection(draftAction) && multiSelectionRef.current) {
         nextVehicles = multiSelectionRef.current;
         multiSelectionRef.current = null;
       }
     }
     if (nextVehicles !== draftVehicles) setDraftVehicles(nextVehicles);
+    if (action === 'alertes' && draftAction !== 'alertes') {
+      setDraftAlertTypes(new Set());
+      setAlertsAwaitingApply(true);
+    }
     setDraftAction(action);
     setApplied((prev) =>
       prev
@@ -1405,7 +1420,9 @@ export function VehicleListPanel({
 
   const selectRowVehicle = (row: SuivieRow) => {
     const vehicle = vehicleById[row.vehicleId];
-    if (vehicle) onSelectVehicle(vehicle);
+    if (!vehicle) return;
+    if (activeAction === 'suivie_generale' && onPreviewVehicle) onPreviewVehicle(vehicle);
+    else onSelectVehicle(vehicle);
   };
 
   const trajectoryOf = (vehicleId: string) => {
@@ -2338,6 +2355,8 @@ export function VehicleListPanel({
                             ? activeAction === 'trajectoire'
                               ? 'Sélectionnez un véhicule, puis cliquez sur « Appliquer » pour afficher sa trajectoire.'
                               : 'Sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer » pour afficher leurs arrêts et circulations.'
+                            : activeAction === 'alertes' && alertsAwaitingApply
+                            ? 'Choisissez vos filtres (véhicules, types d’alerte, période), puis cliquez sur « Appliquer » pour afficher les alertes.'
                             : tableSearch.trim()
                             ? 'Aucun résultat pour cette recherche dans le tableau.'
                             : 'Aucun résultat pour ces filtres.'}

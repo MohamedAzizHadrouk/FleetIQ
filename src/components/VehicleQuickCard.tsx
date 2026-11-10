@@ -31,7 +31,7 @@ function formatUpdate(value: string | undefined): string {
   if (!value) return '—';
   const d = new Date(value);
   if (Number.isNaN(d.getTime())) return value;
-  return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 /** Compact card shown above a vehicle clicked on the map: only the essentials */
@@ -91,7 +91,7 @@ export function VehicleQuickCard({
           </div>
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-[#2F6BFF] shrink-0" />
-            <dt className="text-[#5B6B8C]">Mise à jour</dt>
+            <dt className="text-[#5B6B8C]">Date / heure</dt>
             <dd className="ml-auto font-semibold tabular-nums text-[#5B6B8C]">
               {formatUpdate(vehicle.timestamp ?? vehicle.lastUpdate)}
             </dd>
