@@ -381,17 +381,25 @@ function OverviewTab({
               </div>
               <div className="flex flex-col gap-px flex-1 min-w-0 pb-2.5">
                 <span className="text-[14.5px] font-bold truncate">{vehicle.driver || 'Non affecté'}</span>
-                {show('telephone') && vehicle.driverPhone && (
-                  <a
-                    href={`tel:${vehicle.driverPhone.replace(/\s/g, '')}`}
-                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2F6BFF] hover:underline w-fit tabular-nums"
-                    title="Appeler le chauffeur"
-                  >
-                    <Phone className="w-3 h-3" />
-                    {vehicle.driverPhone}
-                  </a>
-                )}
-                <span className="text-[12.5px] text-[#5B6B8C] truncate">{driverSub || 'Chauffeur'}</span>
+                {/* Phone, then driving time on the same line */}
+                <div className="flex items-center gap-1.5 min-w-0 text-[12.5px]">
+                  {show('telephone') && vehicle.driverPhone && (
+                    <>
+                      <a
+                        href={`tel:${vehicle.driverPhone.replace(/\s/g, '')}`}
+                        className="inline-flex items-center gap-1 font-semibold text-[#2F6BFF] hover:underline whitespace-nowrap tabular-nums"
+                        title="Appeler le chauffeur"
+                      >
+                        <Phone className="w-3 h-3" />
+                        {vehicle.driverPhone}
+                      </a>
+                      {driverSub && <span className="text-[#C3CBD9]">·</span>}
+                    </>
+                  )}
+                  {(driverSub || !(show('telephone') && vehicle.driverPhone)) && (
+                    <span className="text-[#5B6B8C] truncate">{driverSub || 'Chauffeur'}</span>
+                  )}
+                </div>
               </div>
             </div>
           )}
