@@ -874,7 +874,7 @@ export function VehicleListPanel({
   const scopedRows = useMemo(() => {
     if (!applied) return [] as SuivieRow[];
     if (
-      applied.action === 'stop_circulation' &&
+      (applied.action === 'stop_circulation' || applied.action === 'trajectoire') &&
       applied.vehicleIds.size === 0 &&
       applied.departments.size === 0
     )
@@ -1072,7 +1072,19 @@ export function VehicleListPanel({
     });
   }, [vehicles, vehicleSearch]);
 
-  useEffect(() => {
+  /**
+   * Filters are only sent when the user presses "Appliquer" (one data load per
+   * change set instead of one per click in the dropdowns).
+   */
+  const sameSet = (a: Set<string>, b: Set<string>) => a.size === b.size && [...a].every((x) => b.has(x));
+  const filtersDirty =
+    !!applied &&
+    (applied.action !== draftAction ||
+      !sameSet(applied.vehicleIds, draftVehicles) ||
+      applied.startDate !== draftStartDate ||
+      applied.endDate !== draftEndDate ||
+      (draftAction === 'alertes' && !sameSet(applied.alertTypes, draftAlertTypes)));
+  const applyDraft = () => {
     setApplied({
       action: draftAction,
       vehicleIds: new Set(draftVehicles),
@@ -1081,21 +1093,11 @@ export function VehicleListPanel({
       endDate: draftEndDate,
       alertTypes: new Set(draftAlertTypes),
     });
-  }, [
-    draftAction,
-    draftVehicles,
-    draftStartDate,
-    draftEndDate,
-    draftAlertTypes,
-  ]);
+    setIsVehicleDropdownOpen(false);
+    setIsAlertDropdownOpen(false);
+  };
 
   const toggleVehicle = (id: string) => {
-    if (draftAction === 'trajectoire') {
-      // Trajectoire works on one vehicle at a time
-      setDraftVehicles(new Set([id]));
-      setIsVehicleDropdownOpen(false);
-      return;
-    }
     setDraftVehicles((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -1208,17 +1210,9 @@ export function VehicleListPanel({
       if (!isScopedView(draftAction) && isScopedView(action)) {
         multiSelectionRef.current = new Set(draftVehicles);
       }
-      if (action === 'stop_circulation') {
-        // Stop & Circulation starts with no vehicle selected
+      if (action === 'stop_circulation' || action === 'trajectoire') {
+        // Stop & Circulation and Trajectoire start empty: the user picks the vehicles
         nextVehicles = new Set();
-      } else if (action === 'trajectoire') {
-        if (draftVehicles.size !== 1) {
-          const preferred =
-            (selectedVehicleId && vehicles.some((v) => v.id === selectedVehicleId) && selectedVehicleId) ||
-            [...draftVehicles][0] ||
-            vehicles[0]?.id;
-          nextVehicles = preferred ? new Set([preferred]) : new Set();
-        }
       } else if (isScopedView(draftAction) && multiSelectionRef.current) {
         nextVehicles = multiSelectionRef.current;
         multiSelectionRef.current = null;
@@ -1964,11 +1958,6 @@ export function VehicleListPanel({
                               onChange={setVehicleSearch}
                               placeholder="Matricule, IMEI, nom…"
                             />
-                            {draftAction === 'trajectoire' && (
-                              <p className="mt-1.5 px-1 text-[11px] font-semibold text-[#2F6BFF]">
-                                Trajectoire : choisissez un seul véhicule
-                              </p>
-                            )}
                             <p className="mt-1 px-1 text-[10px] text-slate-500">
                               {draftVehicles.size} sélectionné
                               {draftVehicles.size === 1 ? '' : 's'}
@@ -1978,7 +1967,7 @@ export function VehicleListPanel({
                             </p>
                           </div>
                           <div className="overflow-y-auto flex-1 p-1">
-                            {draftAction !== 'trajectoire' && !vehicleSearch.trim() && vehicles.length > 0 && (
+                            {!vehicleSearch.trim() && vehicles.length > 0 && (
                               <label className="flex items-center gap-2 px-2 py-1.5 mb-0.5 border-b border-[#EEF1F7] hover:bg-slate-50 rounded-lg cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -2008,18 +1997,13 @@ export function VehicleListPanel({
                                   className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group transition-colors"
                                 >
                                   <div
-                                    className={`w-3.5 h-3.5 ${draftAction === 'trajectoire' ? 'rounded-full' : 'rounded'} border flex items-center justify-center transition-colors shrink-0 ${
+                                    className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
                                       draftVehicles.has(vehicle.id)
                                         ? 'bg-blue-600 border-blue-600'
                                         : 'border-slate-300 bg-white group-hover:border-blue-400'
                                     }`}
                                   >
-                                    {draftVehicles.has(vehicle.id) &&
-                                      (draftAction === 'trajectoire' ? (
-                                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
-                                      ) : (
-                                        <Check className="w-2.5 h-2.5 text-white" />
-                                      ))}
+                                    {draftVehicles.has(vehicle.id) && <Check className="w-2.5 h-2.5 text-white" />}
                                   </div>
                                   <input
                                     type="checkbox"
@@ -2043,6 +2027,25 @@ export function VehicleListPanel({
                                 </label>
                               ))
                             )}
+                          </div>
+                          {/* Apply right from the list once the selection is done */}
+                          <div className="p-2 border-t border-[#EEF1F7] flex items-center justify-between gap-2 bg-[#FBFCFF]">
+                            <span className="text-[11px] text-[#8A94A6]">
+                              {filtersDirty ? 'Sélection non appliquée' : 'Sélection appliquée'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={applyDraft}
+                              disabled={!filtersDirty}
+                              className={`h-8 inline-flex items-center gap-1.5 px-3 rounded-lg text-[12px] font-bold transition-colors ${
+                                filtersDirty
+                                  ? 'bg-[#2F6BFF] text-white hover:bg-[#2558D9]'
+                                  : 'bg-[#F0F3F9] text-[#8A94A6] cursor-default'
+                              }`}
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                              Appliquer
+                            </button>
                           </div>
                         </motion.div>
                       )}
@@ -2157,6 +2160,25 @@ export function VehicleListPanel({
                       className="w-full h-9 pl-9 pr-3 text-[13px] text-[#0F1B3D] bg-[#F7F9FF] border border-[#E3E9F4] rounded-xl placeholder:text-[#8A94A6] focus:outline-none focus:bg-white focus:border-[#2F6BFF] focus:ring-4 focus:ring-[#2F6BFF]/10 transition-colors"
                     />
                   </div>
+
+                  {/* Sends the chosen vehicles / period / alert types in one go */}
+                  <button
+                    type="button"
+                    data-tour="filter-apply"
+                    onClick={applyDraft}
+                    disabled={!filtersDirty}
+                    title={filtersDirty ? 'Appliquer les filtres' : 'Les filtres sont à jour'}
+                    aria-label="Appliquer les filtres"
+                    className={`${draftAction === 'alertes' ? 'order-4' : 'order-3'} shrink-0 h-9 inline-flex items-center gap-1.5 px-3.5 rounded-xl text-[13px] font-bold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F6BFF] ${
+                      filtersDirty
+                        ? 'bg-[#2F6BFF] text-white shadow-[0_2px_8px_rgba(47,107,255,0.28)] hover:bg-[#2558D9]'
+                        : 'bg-[#F0F3F9] text-[#8A94A6] cursor-default'
+                    }`}
+                  >
+                    <Check className="w-4 h-4" />
+                    Appliquer
+                    {filtersDirty && <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-white/90" />}
+                  </button>
 
                   <GroupByDropZone
                     groupByColumnId={groupByColumnId}
@@ -2295,11 +2317,13 @@ export function VehicleListPanel({
                           colSpan={Math.max(colCount, 1)}
                           className="px-4 py-12 text-center text-sm text-slate-500"
                         >
-                          {activeAction === 'stop_circulation' &&
+                          {(activeAction === 'stop_circulation' || activeAction === 'trajectoire') &&
                           applied &&
                           applied.vehicleIds.size === 0 &&
                           applied.departments.size === 0
-                            ? 'Sélectionnez un ou plusieurs véhicules pour afficher leurs arrêts et circulations.'
+                            ? activeAction === 'trajectoire'
+                              ? 'Sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer » pour afficher leurs trajectoires.'
+                              : 'Sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer » pour afficher leurs arrêts et circulations.'
                             : tableSearch.trim()
                             ? 'Aucun résultat pour cette recherche dans le tableau.'
                             : 'Aucun résultat pour ces filtres.'}

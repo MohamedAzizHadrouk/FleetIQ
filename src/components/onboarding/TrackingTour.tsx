@@ -158,7 +158,7 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'Le parcours détaillé d’un véhicule, sur les routes réelles.',
+          'Le parcours détaillé d’un ou plusieurs véhicules, sur les routes réelles.',
           'Basculez entre le mode lignes et le mode graphique de vitesse.',
           'Animez le trajet sur la carte, consultez les statistiques ou enregistrez-le comme route.',
         ]}
