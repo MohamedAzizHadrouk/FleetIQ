@@ -22,6 +22,8 @@ import 'leaflet.markercluster/dist/MarkerCluster.css';
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css';
 import { VehicleMapInfoCard } from './VehicleMapInfoCard';
 import type { VehicleCardActions } from './VehicleMapInfoCard';
+import { VehicleQuickCard } from './VehicleQuickCard';
+import { withVehiclePopupDemo } from '../data/vehicle-popup-demo';
 import {
   FIQ,
   FLEETIQ_MARKER_BOX,
@@ -295,6 +297,68 @@ function SelectedVehiclePopupOverlay({
   );
 }
 
+/** Small essentials card floating just above the selected vehicle marker */
+function VehicleQuickCardOverlay({
+  vehicle,
+  hasCriticalAlert,
+  onClose,
+  onDetails,
+}: {
+  vehicle: Vehicle;
+  hasCriticalAlert: boolean;
+  onClose: () => void;
+  onDetails: () => void;
+}) {
+  const map = useMap();
+  const [pos, setPos] = useState<{ x: number; y: number; visible: boolean } | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      const rect = map.getContainer().getBoundingClientRect();
+      const p = map.latLngToContainerPoint(vehicle.coordinates);
+      const visible = p.x > leftPanelCoveredWidth(map) + 8 && p.x < rect.width - 8 && p.y > 40 && p.y < rect.height;
+      setPos({ x: rect.left + p.x, y: rect.top + p.y, visible });
+    };
+    // Hidden while a +/- zoom animates (the marker moves by CSS); 'zoom' fires when it lands
+    const hide = () => setPos((p) => (p ? { ...p, visible: false } : p));
+    update();
+    map.on('move zoom moveend zoomend resize viewreset', update);
+    map.on('zoomanim', hide);
+    window.addEventListener('resize', update);
+    return () => {
+      map.off('move zoom moveend zoomend resize viewreset', update);
+      map.off('zoomanim', hide);
+      window.removeEventListener('resize', update);
+    };
+  }, [map, vehicle.coordinates]);
+
+  if (!pos?.visible) return null;
+  return createPortal(
+    <div
+      className="leaflet-vehicle-info-popup"
+      style={{
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y - 30,
+        transform: 'translate(-50%, -100%)',
+        zIndex: 1050,
+        pointerEvents: 'auto',
+      }}
+      onMouseDown={(e) => e.stopPropagation()}
+      onDoubleClick={(e) => e.stopPropagation()}
+      onWheel={(e) => e.stopPropagation()}
+    >
+      <VehicleQuickCard
+        vehicle={withVehiclePopupDemo(vehicle)}
+        hasCriticalAlert={hasCriticalAlert}
+        onClose={onClose}
+        onDetails={onDetails}
+      />
+    </div>,
+    document.body
+  );
+}
+
 const MIN_RADIUS_KM = 0.05;
 const MAX_RADIUS_KM = 50;
 const POLYGON_SNAP_PX = 14;
@@ -377,6 +441,15 @@ function MapController({
   const map = useMap();
   // Fly to the selected vehicle once per selection (not after every fit / fly)
   const flownToRef = useRef<string | null>(null);
+  // Opening the docked card ("Plus de détails"): slide the vehicle out from under it
+  const cardShownRef = useRef(cardShown);
+  useEffect(() => {
+    const opened = cardShown && !cardShownRef.current;
+    cardShownRef.current = cardShown;
+    if (opened && selectedVehicle && flownToRef.current === selectedVehicle.id) {
+      flyToBesideCard(map, selectedVehicle.coordinates, map.getZoom(), 0.8, true);
+    }
+  }, [cardShown, selectedVehicle, map]);
   useEffect(() => {
     if (fitBoundsPoints?.length) {
       map.fitBounds(fitBoundsPoints, {
@@ -1065,8 +1138,12 @@ interface MapViewProps {
   fleetVehicles?: Vehicle[];
   /** Cross-module actions offered by the vehicle card */
   vehicleCardActions?: VehicleCardActions;
-  /** Show the docked vehicle card (only after a click on a vehicle icon on the map) */
+  /** Show the docked vehicle card (only after "Plus de détails" on the quick card) */
   showVehicleCard?: boolean;
+  /** Show the small essentials card above the selected marker (after a click on the map) */
+  showVehicleQuickCard?: boolean;
+  /** "Plus de détails" on the quick card: open the docked card */
+  onOpenVehicleDetails?: () => void;
   /** Animated replay of a trip (vehicle drives along the real road) */
   tripReplay?: TripReplayRequest | null;
   /** Stop / segment / chart point selected in the trajectory table */
@@ -1123,6 +1200,8 @@ export function MapView({
   fleetVehicles,
   vehicleCardActions,
   showVehicleCard = true,
+  showVehicleQuickCard = false,
+  onOpenVehicleDetails,
   tripReplay = null,
   onCloseTripReplay = () => {},
   trajectoryFocus = null,
@@ -1666,6 +1745,15 @@ export function MapView({
 
         {tripReplay && (
           <TripReplayLayer key={tripReplay.key} replay={tripReplay} onClose={onCloseTripReplay} />
+        )}
+
+        {selectedVehicle && showVehicleQuickCard && !showVehicleCard && !replayActive && (
+          <VehicleQuickCardOverlay
+            vehicle={selectedVehicle}
+            hasCriticalAlert={criticalIds.has(selectedVehicle.id)}
+            onClose={() => onDeselectVehicle?.()}
+            onDetails={() => onOpenVehicleDetails?.()}
+          />
         )}
 
         {selectedVehicle && showVehicleCard && (

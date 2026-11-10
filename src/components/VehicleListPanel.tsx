@@ -139,7 +139,10 @@ interface VehicleListPanelProps {
   /** Frame the map on these points (beside the table) */
   onFitMapToPoints?: (points: [number, number][]) => void;
   /** Trajectory view: every displayed vehicle trajectory to draw on the map */
-  onTrajectoryLayersChange?: (layers: TrajectoryLayer[]) => void;
+  /** `mode` tells the map which view the layers come from (Trajectoire layers are kept as map layers) */
+  /** Colour of each trajectory kept on the map, so the table matches it */
+  trajectoryColors?: Record<string, string>;
+  onTrajectoryLayersChange?: (layers: TrajectoryLayer[], mode: 'trajectoire' | 'stop_circulation' | null) => void;
   onClearTrajectoryTrack?: () => void;
   onOpenDetailedReport?: (vehicleId: string) => void;
   onOpenAlertConfiguration?: (vehicleId: string) => void;
@@ -619,6 +622,7 @@ export function VehicleListPanel({
   replayVehicleId = null,
   onSaveTrajectoryRoute,
   onTrajectoryLayersChange,
+  trajectoryColors,
   onFitMapToPoints,
 }: VehicleListPanelProps) {
   const [width, setWidth] = useState(() =>
@@ -980,12 +984,13 @@ export function VehicleListPanel({
     return seen;
   }, [activeAction, displayTableRows]);
   const trajColorOf = (vehicleId: string) =>
+    (activeAction === 'trajectoire' ? trajectoryColors?.[vehicleId] : undefined) ??
     TRAJECTORY_COLORS[Math.max(0, trajVehicleOrder.indexOf(vehicleId)) % TRAJECTORY_COLORS.length];
 
   useEffect(() => {
     if (!onTrajectoryLayersChange) return;
     if (activeAction !== 'trajectoire' && activeAction !== 'stop_circulation') {
-      onTrajectoryLayersChange([]);
+      onTrajectoryLayersChange([], null);
       return;
     }
     const withStops = activeAction === 'stop_circulation';
@@ -1015,7 +1020,7 @@ export function VehicleListPanel({
         }),
       });
     });
-    onTrajectoryLayersChange(layers);
+    onTrajectoryLayersChange(layers, activeAction);
   }, [activeAction, trajVehicleOrder, hiddenTrajVehicles, soloVehicleId, vehicleById, onTrajectoryLayersChange]);
 
   // Stop & Circulation: frame all displayed vehicles when the tab opens or the selection changes
@@ -1097,8 +1102,11 @@ export function VehicleListPanel({
     setIsAlertDropdownOpen(false);
   };
 
+  /** Trajectoire shows one vehicle at a time */
+  const singleVehicle = draftAction === 'trajectoire';
   const toggleVehicle = (id: string) => {
     setDraftVehicles((prev) => {
+      if (singleVehicle) return prev.has(id) ? new Set() : new Set([id]);
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -1125,7 +1133,7 @@ export function VehicleListPanel({
 
   const getVehicleButtonText = () => {
     const vCount = draftVehicles.size;
-    if (vCount === 0) return 'Sélectionner des véhicules';
+    if (vCount === 0) return singleVehicle ? 'Sélectionner un véhicule' : 'Sélectionner des véhicules';
     if (vCount === vehicles.length) return `Tous les véhicules (${vCount})`;
     if (vCount === 1) {
       const v = vehicles.find((x) => x.id === [...draftVehicles][0]);
@@ -1959,15 +1967,16 @@ export function VehicleListPanel({
                               placeholder="Matricule, IMEI, nom…"
                             />
                             <p className="mt-1 px-1 text-[10px] text-slate-500">
-                              {draftVehicles.size} sélectionné
-                              {draftVehicles.size === 1 ? '' : 's'}
+                              {singleVehicle
+                                ? 'Un seul véhicule à la fois'
+                                : `${draftVehicles.size} sélectionné${draftVehicles.size === 1 ? '' : 's'}`}
                               {vehicleSearch.trim()
                                 ? ` · ${filteredVehiclesList.length} résultat${filteredVehiclesList.length === 1 ? '' : 's'}`
                                 : ''}
                             </p>
                           </div>
                           <div className="overflow-y-auto flex-1 p-1">
-                            {!vehicleSearch.trim() && vehicles.length > 0 && (
+                            {!singleVehicle && !vehicleSearch.trim() && vehicles.length > 0 && (
                               <label className="flex items-center gap-2 px-2 py-1.5 mb-0.5 border-b border-[#EEF1F7] hover:bg-slate-50 rounded-lg cursor-pointer">
                                 <input
                                   type="checkbox"
@@ -1997,13 +2006,18 @@ export function VehicleListPanel({
                                   className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer group transition-colors"
                                 >
                                   <div
-                                    className={`w-3.5 h-3.5 rounded border flex items-center justify-center transition-colors shrink-0 ${
+                                    className={`w-3.5 h-3.5 ${singleVehicle ? 'rounded-full' : 'rounded'} border flex items-center justify-center transition-colors shrink-0 ${
                                       draftVehicles.has(vehicle.id)
                                         ? 'bg-blue-600 border-blue-600'
                                         : 'border-slate-300 bg-white group-hover:border-blue-400'
                                     }`}
                                   >
-                                    {draftVehicles.has(vehicle.id) && <Check className="w-2.5 h-2.5 text-white" />}
+                                    {draftVehicles.has(vehicle.id) &&
+                                      (singleVehicle ? (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                                      ) : (
+                                        <Check className="w-2.5 h-2.5 text-white" />
+                                      ))}
                                   </div>
                                   <input
                                     type="checkbox"
@@ -2322,7 +2336,7 @@ export function VehicleListPanel({
                           applied.vehicleIds.size === 0 &&
                           applied.departments.size === 0
                             ? activeAction === 'trajectoire'
-                              ? 'Sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer » pour afficher leurs trajectoires.'
+                              ? 'Sélectionnez un véhicule, puis cliquez sur « Appliquer » pour afficher sa trajectoire.'
                               : 'Sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer » pour afficher leurs arrêts et circulations.'
                             : tableSearch.trim()
                             ? 'Aucun résultat pour cette recherche dans le tableau.'

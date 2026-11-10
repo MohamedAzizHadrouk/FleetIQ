@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState, createElement } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, createElement } from 'react';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { MapView } from './components/MapView';
@@ -38,6 +38,8 @@ import { SUIVIE_DEPARTMENTS } from './features/suivie/column-defs';
 import { buildMockTrajectoryPath } from './features/suivie/vehicle-row-actions';
 import { roadPlacement } from './features/fleetiq/road-position';
 import type { TrajectoryFocus, TrajectoryLayer, VehicleTrajectory } from './features/fleetiq/trajectory-data';
+import { TRAJECTORY_COLORS } from './features/fleetiq/trajectory-data';
+import type { TrajectoryMapLayer } from './components/MapControls';
 import { defaultGeoVisibility } from './types/map-overlays';
 import type { VehicleCardActions } from './components/VehicleMapInfoCard';
 import type { TripReplayRequest } from './components/TripReplay';
@@ -500,6 +502,48 @@ function AppShell() {
   const [trajectoryFocus, setTrajectoryFocus] = useState<TrajectoryFocus | null>(null);
   /** All trajectories shown on the map in the trajectory view */
   const [trajectoryLayers, setTrajectoryLayers] = useState<TrajectoryLayer[]>([]);
+  /** Trajectoire view: every applied vehicle stays on the map as a layer until it is removed */
+  const [trajMapLayers, setTrajMapLayers] = useState<TrajectoryMapLayer[]>([]);
+  const lastTrajEmitRef = useRef('');
+  const handleTrajectoryLayersChange = useCallback(
+    (layers: TrajectoryLayer[], mode: 'trajectoire' | 'stop_circulation' | null) => {
+      if (mode !== 'trajectoire') {
+        lastTrajEmitRef.current = '';
+        setTrajectoryLayers(layers);
+        return;
+      }
+      setTrajectoryLayers([]);
+      const key = layers.map((l) => l.vehicleId).join(',');
+      const isNewApply = key !== lastTrajEmitRef.current;
+      lastTrajEmitRef.current = key;
+      setTrajMapLayers((prev) => {
+        let next = prev;
+        for (const layer of layers) {
+          const existing = next.find((x) => x.layer.vehicleId === layer.vehicleId);
+          if (existing) {
+            // Same vehicle applied again: refresh its path and show it again
+            next = next.map((x) =>
+              x === existing ? { ...x, layer: { ...layer, color: x.layer.color }, visible: isNewApply ? true : x.visible } : x
+            );
+          } else if (isNewApply) {
+            const used = new Set(next.map((x) => x.layer.color));
+            const color = TRAJECTORY_COLORS.find((c) => !used.has(c)) ?? TRAJECTORY_COLORS[next.length % TRAJECTORY_COLORS.length];
+            next = [...next, { layer: { ...layer, color }, visible: true }];
+          }
+        }
+        return next;
+      });
+    },
+    []
+  );
+  const trajectoryColors = useMemo(
+    () => Object.fromEntries(trajMapLayers.map((x) => [x.layer.vehicleId, x.layer.color])),
+    [trajMapLayers]
+  );
+  const shownTrajectoryLayers = useMemo(
+    () => [...trajMapLayers.filter((x) => x.visible).map((x) => x.layer), ...trajectoryLayers],
+    [trajMapLayers, trajectoryLayers]
+  );
   const [activeTab, setActiveTab] = useState('suivie');
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(
     null
@@ -659,6 +703,8 @@ function AppShell() {
 
   /** The vehicle card opens only from a click on a vehicle icon on the map */
   const [vehicleCardOpen, setVehicleCardOpen] = useState(false);
+  /** Small essentials card above the marker (first step after a click on the map) */
+  const [quickCardOpen, setQuickCardOpen] = useState(false);
 
   /** Selection from the left table: highlight + centre, never open the card */
   const handleVehicleSelect = useCallback(
@@ -668,6 +714,7 @@ function AppShell() {
         setTrackingPath(null);
       }
       setVehicleCardOpen(false);
+      setQuickCardOpen(false);
       setSelectedVehicleId(vehicle.id);
     },
     [selectedVehicleId]
@@ -676,22 +723,29 @@ function AppShell() {
   /** Was the vehicle list open before a map marker hid it? Restored when the card closes. */
   const [listHiddenByCard, setListHiddenByCard] = useState(false);
 
-  /** Marker click on the map: dock the card top-left and hide the left list for a clear view */
+  /** Marker click on the map: show the small essentials card above the vehicle */
   const handleMapVehicleSelect = useCallback(
     (vehicle: Vehicle) => {
       if (vehicle.id !== selectedVehicleId) {
         setTripReplay(null);
         setTrackingPath(null);
+        setVehicleCardOpen(false);
       }
       setSelectedVehicleId(vehicle.id);
-      setVehicleCardOpen(true);
-      if (!isVehicleListCollapsed) {
-        setIsVehicleListCollapsed(true);
-        setListHiddenByCard(true);
-      }
+      setQuickCardOpen(true);
     },
-    [isVehicleListCollapsed, selectedVehicleId]
+    [selectedVehicleId]
   );
+
+  /** "Plus de détails": dock the full card top-left and hide the left list for a clear view */
+  const openVehicleDetails = useCallback(() => {
+    setQuickCardOpen(false);
+    setVehicleCardOpen(true);
+    if (!isVehicleListCollapsed) {
+      setIsVehicleListCollapsed(true);
+      setListHiddenByCard(true);
+    }
+  }, [isVehicleListCollapsed]);
 
   const handleTrajectoryFocus = useCallback((focus: TrajectoryFocus | null) => {
     setTrajectoryFocus(focus);
@@ -739,6 +793,7 @@ function AppShell() {
     setTrajectoryFocus(null);
     setSelectedVehicleId(null);
     setVehicleCardOpen(false);
+    setQuickCardOpen(false);
     setTripReplay(null);
     setTrackingPath(null);
     if (listHiddenByCard || listHiddenByReplay) {
@@ -1039,6 +1094,8 @@ function AppShell() {
               onSelectVehicle={handleMapVehicleSelect}
               onDeselectVehicle={handleCloseVehicleCard}
               showVehicleCard={vehicleCardOpen}
+              showVehicleQuickCard={quickCardOpen}
+              onOpenVehicleDetails={openVehicleDetails}
               mapCenter={mapCenter}
               mapCenterZoom={mapCenterZoom}
               trackingPath={trackingPath}
@@ -1046,7 +1103,7 @@ function AppShell() {
               vehicleCardActions={vehicleCardActions}
               tripReplay={tripReplay}
               trajectoryFocus={trajectoryFocus}
-              trajectoryLayers={trajectoryLayers}
+              trajectoryLayers={shownTrajectoryLayers}
               onCloseTripReplay={closeTripReplay}
               onMapCenterChange={() => setMapCenter(null)}
               basemap={mapOverlays.basemap}
@@ -1152,6 +1209,22 @@ function AppShell() {
                   mapOverlays.overlayFormKind === 'route')
               }
               polygonDrawError={mapOverlays.polygonDrawError}
+              trajectoryMapLayers={trajMapLayers}
+              onTrajectoryLayerVisible={(vehicleId, visible) =>
+                setTrajMapLayers((prev) => prev.map((x) => (x.layer.vehicleId === vehicleId ? { ...x, visible } : x)))
+              }
+              onAllTrajectoryLayersVisible={(visible) => setTrajMapLayers((prev) => prev.map((x) => ({ ...x, visible })))}
+              onRemoveTrajectoryLayer={(vehicleId) =>
+                setTrajMapLayers((prev) => prev.filter((x) => x.layer.vehicleId !== vehicleId))
+              }
+              onClearTrajectoryLayers={() => setTrajMapLayers([])}
+              onFocusTrajectoryLayer={(vehicleId) => {
+                const l = trajMapLayers.find((x) => x.layer.vehicleId === vehicleId);
+                if (!l) return;
+                if (!l.visible)
+                  setTrajMapLayers((prev) => prev.map((x) => (x.layer.vehicleId === vehicleId ? { ...x, visible: true } : x)));
+                mapOverlays.setFitBoundsPoints(l.layer.path);
+              }}
             />
 
             {leftPanelOpen && (
@@ -1408,7 +1481,8 @@ function AppShell() {
                   onOpenDetailedReport={handleOpenDetailedReport}
                   onOpenAlertConfiguration={handleOpenAlertConfiguration}
                   onTrajectoryFocus={handleTrajectoryFocus}
-                  onTrajectoryLayersChange={setTrajectoryLayers}
+                  onTrajectoryLayersChange={handleTrajectoryLayersChange}
+                  trajectoryColors={trajectoryColors}
                   onFitMapToPoints={(points) => mapOverlays.setFitBoundsPoints(points)}
                   onReplayTrajectory={handleReplayTrajectory}
                   onStopReplay={closeTripReplay}

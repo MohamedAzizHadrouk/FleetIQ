@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Vehicle } from '@/types';
+import { ContactTag } from './VehicleQuickCard';
 import { withVehiclePopupDemo } from '@/data/vehicle-popup-demo';
 import {
   FIQ,
@@ -130,6 +131,7 @@ function VehicleCard({ vehicle: rawVehicle, onClose, actions = {} }: VehicleMapI
         <div className="flex flex-col gap-[5px] flex-1 min-w-0">
           <span className="text-[22px] font-extrabold leading-tight truncate">{title}</span>
           <div className="flex items-center gap-1.5 flex-wrap">
+            <ContactTag vehicle={vehicle} />
             <span
               className="inline-flex items-center gap-[5px] px-[9px] py-[3px] rounded-full text-xs font-bold"
               style={{ background: chip.bg, color: chip.fg }}

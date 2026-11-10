@@ -3,7 +3,9 @@ import {
   Eye,
   EyeOff,
   Layers,
+  Layers2,
   Route,
+  Trash2,
   Check,
   SlidersHorizontal,
   CircleDot,
@@ -19,8 +21,15 @@ import type {
   MapOverlay,
 } from '../types/map-overlays';
 import { BASEMAP_TILES } from '../types/map-overlays';
+import type { TrajectoryLayer } from '../features/fleetiq/trajectory-data';
 
-type OpenMenu = 'geo' | 'visibility' | 'layers' | 'hide' | null;
+type OpenMenu = 'geo' | 'visibility' | 'layers' | 'hide' | 'trajectories' | null;
+
+/** One trajectory kept on the map (Trajectoire view) */
+export interface TrajectoryMapLayer {
+  layer: TrajectoryLayer;
+  visible: boolean;
+}
 
 const toolbarBtn =
   'h-9 w-9 sm:h-10 sm:w-10 inline-flex items-center justify-center rounded-xl border transition-colors';
@@ -92,6 +101,13 @@ interface MapControlsProps {
   polygonDrawError?: string | null;
   onMenuChange?: (menu: OpenMenu) => void;
   onExpandedChange?: (expanded: boolean) => void;
+  /** Trajectories kept on the map, managed from the "Couches des trajectoires" menu */
+  trajectoryMapLayers?: TrajectoryMapLayer[];
+  onTrajectoryLayerVisible?: (vehicleId: string, visible: boolean) => void;
+  onAllTrajectoryLayersVisible?: (visible: boolean) => void;
+  onRemoveTrajectoryLayer?: (vehicleId: string) => void;
+  onClearTrajectoryLayers?: () => void;
+  onFocusTrajectoryLayer?: (vehicleId: string) => void;
 }
 
 export function MapControls({
@@ -121,6 +137,12 @@ export function MapControls({
   polygonDrawError,
   onMenuChange,
   onExpandedChange,
+  trajectoryMapLayers = [],
+  onTrajectoryLayerVisible,
+  onAllTrajectoryLayersVisible,
+  onRemoveTrajectoryLayer,
+  onClearTrajectoryLayers,
+  onFocusTrajectoryLayer,
 }: MapControlsProps) {
   const [openMenu, setOpenMenu] = useState<OpenMenu>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -611,6 +633,94 @@ export function MapControls({
               </div>
             )}
           </div>
+
+          {trajectoryMapLayers.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => toggleMenu('trajectories')}
+                className={`${toolbarBtn} relative ${openMenu === 'trajectories' ? toolbarActive : toolbarIdle}`}
+                title="Couches des trajectoires"
+                aria-label="Couches des trajectoires"
+                aria-expanded={openMenu === 'trajectories'}
+              >
+                <Layers2 className="w-5 h-5" />
+                <span className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-[#2F6BFF] text-white text-[10.5px] font-bold inline-flex items-center justify-center ring-2 ring-white">
+                  {trajectoryMapLayers.length}
+                </span>
+              </button>
+
+              {openMenu === 'trajectories' && (
+                <div className="absolute right-full top-0 mr-2 w-[min(296px,calc(100vw-1rem))] bg-white rounded-2xl shadow-xl border border-[#E3E9F4] overflow-hidden">
+                  <div className="px-4 py-3 border-b border-[#EEF1F7] flex items-center gap-2">
+                    <h3 className="text-sm font-semibold text-[#0F1B3D]">Couches des trajectoires</h3>
+                    <span className="ml-auto text-[11px] font-semibold text-[#8A94A6]">
+                      {trajectoryMapLayers.filter((x) => x.visible).length}/{trajectoryMapLayers.length} affichée
+                      {trajectoryMapLayers.filter((x) => x.visible).length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  <div className="p-1.5 max-h-64 overflow-y-auto">
+                    {trajectoryMapLayers.map(({ layer, visible }) => (
+                      <div key={layer.vehicleId} className="flex items-center gap-2 pl-2.5 pr-1 py-1.5 rounded-lg hover:bg-[#F7F9FF]">
+                        <span
+                          className="w-3 h-3 rounded-full shrink-0"
+                          style={{ background: visible ? layer.color : '#CBD3E1' }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => onFocusTrajectoryLayer?.(layer.vehicleId)}
+                          title="Centrer la carte sur cette trajectoire"
+                          className={`flex-1 min-w-0 text-left text-sm truncate ${visible ? 'text-[#0F1B3D] font-semibold' : 'text-[#8A94A6]'}`}
+                        >
+                          {layer.label}
+                        </button>
+                        <button
+                          type="button"
+                          title={visible ? 'Masquer' : 'Afficher'}
+                          aria-label={`${visible ? 'Masquer' : 'Afficher'} ${layer.label}`}
+                          onClick={() => onTrajectoryLayerVisible?.(layer.vehicleId, !visible)}
+                          className={`p-1.5 rounded-md transition-colors ${visible ? 'text-[#2F6BFF] hover:bg-[#EAF1FF]' : 'text-[#8A94A6] hover:bg-[#F0F3F9]'}`}
+                        >
+                          {visible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </button>
+                        <button
+                          type="button"
+                          title="Supprimer la couche"
+                          aria-label={`Supprimer la couche ${layer.label}`}
+                          onClick={() => {
+                            if (trajectoryMapLayers.length === 1) setOpenMenu(null);
+                            onRemoveTrajectoryLayer?.(layer.vehicleId);
+                          }}
+                          className="p-1.5 rounded-md text-[#8A94A6] hover:text-[#E5484D] hover:bg-[#FDECEC] transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="p-2 border-t border-[#EEF1F7] flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onAllTrajectoryLayersVisible?.(!trajectoryMapLayers.every((x) => x.visible))}
+                      className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-[#E3E9F4] text-[#0F1B3D] hover:bg-[#F7F9FF]"
+                    >
+                      {trajectoryMapLayers.every((x) => x.visible) ? 'Tout masquer' : 'Tout afficher'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOpenMenu(null);
+                        onClearTrajectoryLayers?.();
+                      }}
+                      className="flex-1 px-3 py-2 text-xs font-semibold rounded-lg border border-[#F5C2C4] text-[#C8323A] hover:bg-[#FDECEC]"
+                    >
+                      Tout supprimer
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           <button
             type="button"
