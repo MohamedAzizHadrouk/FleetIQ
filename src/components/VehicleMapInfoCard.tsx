@@ -393,17 +393,6 @@ function OverviewTab({
                 )}
                 <span className="text-[12.5px] text-[#5B6B8C] truncate">{driverSub || 'Chauffeur'}</span>
               </div>
-              {actions.onOpenDriver && (
-                <button
-                  type="button"
-                  aria-label="Fiche chauffeur"
-                  title="Fiche chauffeur"
-                  onClick={() => actions.onOpenDriver?.(vehicle)}
-                  className="w-[34px] h-[34px] rounded-[11px] border border-[#DCE3EF] bg-white text-[#0F1B3D] flex items-center justify-center shrink-0 hover:bg-[#F7F9FF]"
-                >
-                  <Phone className="w-4 h-4" />
-                </button>
-              )}
             </div>
           )}
         </div>
