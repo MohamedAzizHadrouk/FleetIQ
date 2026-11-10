@@ -15,11 +15,13 @@ export function VehicleCard({
   const statusColors = {
     active: 'bg-emerald-500',
     idle: 'bg-amber-500',
-    offline: 'bg-rose-500'
+    stopped: 'bg-rose-500',
+    offline: 'bg-slate-400'
   };
   const statusText = {
     active: 'En mouvement',
-    idle: "À l'arrêt",
+    idle: 'Contact ON · 0 km/h',
+    stopped: "À l'arrêt",
     offline: 'Hors ligne'
   };
   return (

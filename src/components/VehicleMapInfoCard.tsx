@@ -83,7 +83,8 @@ type TabId = 'apercu' | 'details' | 'maintenance' | 'alertes';
 
 const STATUS_CHIP: Record<FleetiqMarkerStatus, { bg: string; fg: string }> = {
   moving: { bg: '#DCFCE7', fg: '#166534' },
-  stopped: { bg: '#FEF3C7', fg: '#92400E' },
+  idle: { bg: '#FEF3C7', fg: '#92400E' },
+  stopped: { bg: '#FDECEC', fg: '#9B1C22' },
   offline: { bg: '#EEF1F7', fg: '#475569' },
   alert: { bg: '#FDECEC', fg: '#9B1C22' },
 };
@@ -352,7 +353,7 @@ function OverviewTab({
       sub: show('dateHeure') && show('horodatage') ? `Dernière mise à jour ${val('horodatage')}` : 'Date / heure',
     });
   }
-  const driverSub = [show('carte') && val('carte'), show('tempsConduite') && vehicle.drivingTime && `${vehicle.drivingTime} de conduite`]
+  const driverSub = [show('tempsConduite') && vehicle.drivingTime && `${vehicle.drivingTime} de conduite`]
     .filter(Boolean)
     .join(' · ');
 
@@ -380,6 +381,16 @@ function OverviewTab({
               </div>
               <div className="flex flex-col gap-px flex-1 min-w-0 pb-2.5">
                 <span className="text-[14.5px] font-bold truncate">{vehicle.driver || 'Non affecté'}</span>
+                {show('telephone') && vehicle.driverPhone && (
+                  <a
+                    href={`tel:${vehicle.driverPhone.replace(/\s/g, '')}`}
+                    className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-[#2F6BFF] hover:underline w-fit tabular-nums"
+                    title="Appeler le chauffeur"
+                  >
+                    <Phone className="w-3 h-3" />
+                    {vehicle.driverPhone}
+                  </a>
+                )}
                 <span className="text-[12.5px] text-[#5B6B8C] truncate">{driverSub || 'Chauffeur'}</span>
               </div>
               {actions.onOpenDriver && (

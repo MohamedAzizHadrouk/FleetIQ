@@ -1,7 +1,7 @@
-import { Activity, AlertTriangle, ChevronDown, ChevronRight, Navigation, Square, WifiOff, X } from 'lucide-react';
+import { Activity, AlertTriangle, ChevronDown, ChevronRight, Navigation, Power, Square, WifiOff, X } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { VehicleStatus } from '@/types';
-import { FIQ, FIQ_STATUS_LABEL, type FleetiqMarkerStatus } from '@/features/fleetiq/vehicle-sprite';
+import { FIQ, FIQ_STATUS_COLOR, FIQ_STATUS_LABEL, type FleetiqMarkerStatus } from '@/features/fleetiq/vehicle-sprite';
 
 /**
  * Floating fleet summary on the tracking map. Uses the same statuses, colours and
@@ -16,7 +16,8 @@ const ROWS: {
   tint: string;
 }[] = [
   { status: 'active', marker: 'moving', hint: 'Vitesse > 0 km/h', icon: Navigation, tint: '#DCFCE7' },
-  { status: 'idle', marker: 'stopped', hint: 'Contact ou arrêt prolongé', icon: Square, tint: '#FEF3C7' },
+  { status: 'idle', marker: 'idle', hint: 'Contact ON, vitesse 0 km/h', icon: Power, tint: '#FEF3C7' },
+  { status: 'stopped', marker: 'stopped', hint: 'Contact OFF', icon: Square, tint: '#FDECEC' },
   { status: 'offline', marker: 'offline', hint: 'Aucune position récente', icon: WifiOff, tint: '#EEF1F7' },
 ];
 
@@ -43,7 +44,7 @@ export function MonitoringCenterCard({
   criticalCount: number;
   onOpenAlerts: () => void;
 }) {
-  const total = statusCounts.active + statusCounts.idle + statusCounts.offline;
+  const total = statusCounts.active + statusCounts.idle + statusCounts.stopped + statusCounts.offline;
   const pct = (n: number) => (total ? (n / total) * 100 : 0);
 
   if (isCollapsed) {
@@ -190,5 +191,5 @@ export function MonitoringCenterCard({
 }
 
 function statusColor(s: FleetiqMarkerStatus) {
-  return s === 'moving' ? FIQ.moving : s === 'stopped' ? FIQ.stopped : s === 'offline' ? FIQ.offline : FIQ.alert;
+  return FIQ_STATUS_COLOR[s];
 }

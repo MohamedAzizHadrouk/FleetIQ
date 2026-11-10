@@ -250,7 +250,7 @@ export interface VehicleHealthSnapshot {
   criticalCount: number;
   warningCount: number;
   infoCount: number;
-  status: 'active' | 'idle' | 'offline';
+  status: 'active' | 'idle' | 'stopped' | 'offline';
   ignitionOn: boolean;
   isMoving: boolean;
   lastCommunication: string;
@@ -265,7 +265,7 @@ export interface VehicleAlertSummary {
   licensePlate: string;
   driverName: string;
   fleetName: string;
-  status: 'active' | 'idle' | 'offline';
+  status: 'active' | 'idle' | 'stopped' | 'offline';
   gpsStatus: 'online' | 'offline';
   lastCommunication: string;
   location: string;

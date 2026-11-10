@@ -22,7 +22,7 @@ export type FleetiqVehicleType =
   | 'fire'
   | 'delivery';
 
-export type FleetiqMarkerStatus = 'moving' | 'stopped' | 'offline' | 'alert';
+export type FleetiqMarkerStatus = 'moving' | 'idle' | 'stopped' | 'offline' | 'alert';
 
 /** Design tokens (see src/assets/fleetiq/design-tokens.css). */
 export const FIQ = {
@@ -33,7 +33,10 @@ export const FIQ = {
   borderStrong: '#DCE3EF',
   surfaceAlt: '#F0F3F9',
   moving: '#16A34A',
-  stopped: '#F59E0B',
+  /** Contact ON at 0 km/h */
+  idle: '#F59E0B',
+  /** Stopped, contact OFF */
+  stopped: '#E5484D',
   offline: '#8A94A6',
   alert: '#E5484D',
   selected: '#2F6BFF',
@@ -41,6 +44,7 @@ export const FIQ = {
 
 export const FIQ_STATUS_COLOR: Record<FleetiqMarkerStatus, string> = {
   moving: FIQ.moving,
+  idle: FIQ.idle,
   stopped: FIQ.stopped,
   offline: FIQ.offline,
   alert: FIQ.alert,
@@ -48,6 +52,7 @@ export const FIQ_STATUS_COLOR: Record<FleetiqMarkerStatus, string> = {
 
 export const FIQ_STATUS_LABEL: Record<FleetiqMarkerStatus, string> = {
   moving: 'En mouvement',
+  idle: 'Contact ON · 0 km/h',
   stopped: 'À l’arrêt',
   offline: 'Hors ligne',
   alert: 'Alerte',
@@ -95,7 +100,8 @@ export function toFleetiqStatus(
 ): FleetiqMarkerStatus {
   if (hasCriticalAlert && status !== 'offline') return 'alert';
   if (status === 'active') return 'moving';
-  if (status === 'idle') return 'stopped';
+  if (status === 'idle') return 'idle';
+  if (status === 'stopped') return 'stopped';
   return 'offline';
 }
 

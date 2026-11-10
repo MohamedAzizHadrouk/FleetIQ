@@ -14,6 +14,7 @@ import {
   History,
   MapPin,
   Navigation,
+  Phone,
   Plug,
   RadioTower,
   Route,
@@ -110,6 +111,7 @@ export const VEHICLE_FIELDS: VehicleField[] = [
   { id: 'consommation', label: 'Consommation', section: 'carburant', icon: Gauge, value: (v) => num(v.fuelConsumption, 'L/100 km', 1) },
   // Chauffeur
   { id: 'chauffeur', label: 'Chauffeur', section: 'chauffeur', icon: UserRound, value: (v) => text(v.driver) },
+  { id: 'telephone', label: 'Téléphone du chauffeur', section: 'chauffeur', icon: Phone, value: (v) => text(v.driverPhone), copy: true },
   { id: 'carte', label: 'Identifiant de carte', section: 'chauffeur', icon: CreditCard, value: (v) => text(v.cardId), copy: true },
   { id: 'tempsConduite', label: 'Temps de conduite', section: 'chauffeur', icon: Clock, value: (v) => text(v.drivingTime) },
   // Équipement GPS

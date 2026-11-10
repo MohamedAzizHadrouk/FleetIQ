@@ -6,9 +6,9 @@ import {
   toFleetiqStatus,
 } from '@/features/fleetiq/vehicle-sprite';
 
-/** Ignition state: a connected vehicle (moving or idle) has its contact on */
+/** Ignition state: contact ON while moving or idling at 0 km/h; OFF when stopped or offline */
 export function isContactOn(vehicle: Pick<Vehicle, 'status'>): boolean {
-  return vehicle.status !== 'offline';
+  return vehicle.status === 'active' || vehicle.status === 'idle';
 }
 
 /** Small "Contact ON / OFF" tag shown under the vehicle's matricule */

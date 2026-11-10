@@ -1,6 +1,12 @@
 import type { VehicleIconType } from '@/features/parc/vehicle-types';
 
-export type VehicleStatus = 'active' | 'idle' | 'offline';
+/**
+ * active  = en mouvement (vitesse > 0)
+ * idle    = contact ON mais vitesse 0 (ralenti)
+ * stopped = à l'arrêt, contact OFF
+ * offline = hors ligne
+ */
+export type VehicleStatus = 'active' | 'idle' | 'stopped' | 'offline';
 
 export interface Vehicle {
   id: string;
@@ -34,6 +40,8 @@ export interface Vehicle {
   fuelVolume?: number;
   fuelConsumption?: number;
   driverId?: string;
+  /** Driver's phone number */
+  driverPhone?: string;
   drivingTime?: string;
   serialNumber?: string;
   chipNumber?: string;

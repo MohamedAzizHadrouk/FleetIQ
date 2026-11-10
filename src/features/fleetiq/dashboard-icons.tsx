@@ -212,7 +212,7 @@ export function getActiveDashIndicators(vehicle: Vehicle, alerts: FleetAlert[]):
     if (s % 2 === 0) on.add('low_beam');
     if (s % 5 === 0) on.add('cruise_control');
     if (s % 3 === 0) on.add('ac');
-  } else if (vehicle.status === 'idle') {
+  } else if (vehicle.status === 'idle' || vehicle.status === 'stopped') {
     on.add('handbrake');
     if (s % 2 === 1) on.add('central_lock');
   } else {

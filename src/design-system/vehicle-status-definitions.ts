@@ -23,10 +23,16 @@ export const VEHICLE_STATUS_DEFINITIONS: Record<VehicleStatus, StatusDefinition>
     badgeVariant: 'success',
   },
   idle: {
-    label: "À l'arrêt",
-    description: 'Connecté mais immobile (contact ON)',
+    label: 'Contact ON · 0 km/h',
+    description: 'Connecté, contact ON mais immobile',
     icon: PauseCircle,
     badgeVariant: 'medium',
+  },
+  stopped: {
+    label: "À l'arrêt",
+    description: 'Véhicule arrêté, contact OFF',
+    icon: PauseCircle,
+    badgeVariant: 'critical',
   },
   offline: {
     label: 'Hors ligne',

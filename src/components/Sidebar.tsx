@@ -45,6 +45,7 @@ const EMPTY_STATUS_FILTER = new Set<VehicleStatus>();
 const DEFAULT_STATUS_COUNTS: Record<VehicleStatus, number> = {
   active: 0,
   idle: 0,
+  stopped: 0,
   offline: 0,
 };
 
@@ -310,10 +311,10 @@ export function Sidebar({
 
               <button
                 type="button"
-                onClick={() => onToggleStatusFilter?.('idle')}
-                aria-pressed={statusFilter.has('idle')}
+                onClick={() => onToggleStatusFilter?.('stopped')}
+                aria-pressed={statusFilter.has('stopped')}
                 className={`w-full flex items-center justify-between py-2.5 px-3 rounded-lg border group transition-all ${
-                  statusFilter.has('idle')
+                  statusFilter.has('stopped')
                     ? 'bg-gradient-to-r from-rose-100 to-rose-50 border-rose-400 ring-2 ring-rose-200'
                     : 'bg-gradient-to-r from-rose-50 to-rose-100/50 hover:from-rose-100 hover:to-rose-100 border-rose-200'
                 }`}
@@ -333,7 +334,7 @@ export function Sidebar({
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="text-xl font-bold text-rose-700">
-                    {statusCounts.idle}
+                    {statusCounts.stopped}
                   </span>
                   <Circle className="w-1.5 h-1.5 fill-rose-500 text-rose-500" />
                 </div>
@@ -463,10 +464,10 @@ export function Sidebar({
 
             <button
               type="button"
-              onClick={() => onToggleStatusFilter?.('idle')}
-              aria-pressed={statusFilter.has('idle')}
+              onClick={() => onToggleStatusFilter?.('stopped')}
+              aria-pressed={statusFilter.has('stopped')}
               className={`w-full flex items-center justify-between py-3 px-4 rounded-xl border group transition-all ${
-                statusFilter.has('idle')
+                statusFilter.has('stopped')
                   ? 'bg-gradient-to-r from-rose-600/40 to-rose-600/20 border-rose-400/60 ring-2 ring-rose-500/40'
                   : 'bg-gradient-to-r from-rose-600/20 to-rose-600/10 hover:from-rose-600/30 hover:to-rose-600/20 border-rose-500/30'
               }`}
@@ -486,7 +487,7 @@ export function Sidebar({
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-bold text-rose-400">
-                  {statusCounts.idle}
+                  {statusCounts.stopped}
                 </span>
                 <Circle className="w-2 h-2 fill-rose-500 text-rose-500" />
               </div>

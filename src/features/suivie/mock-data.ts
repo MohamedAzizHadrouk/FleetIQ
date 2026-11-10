@@ -269,7 +269,7 @@ function enrichVehicleMeta(vehicle: Vehicle, index: number) {
 }
 
 function vehicleSpeedKmh(vehicle: Vehicle, rand: () => number): number {
-  if (vehicle.status === 'offline' || vehicle.status === 'idle') return 0;
+  if (vehicle.status !== 'active') return 0;
   if (vehicle.speed > 0) return vehicle.speed;
   return 20 + Math.floor(rand() * 80);
 }
@@ -278,7 +278,7 @@ function lastAlertForVehicle(vehicle: Vehicle, speedVal: number, rand: () => num
   if (vehicle.status === 'offline') {
     return pick(rand, ['Signal GPS détecté/perdu', 'Batterie débranchée', 'Stop de longue durée']);
   }
-  if (vehicle.status === 'idle') {
+  if (vehicle.status === 'idle' || vehicle.status === 'stopped') {
     return pick(rand, ['Stop', 'Stop de longue durée', '—', 'Contact On/Off']);
   }
   if (speedVal >= 110) return 'Dépassement de vitesse';
@@ -290,7 +290,7 @@ function alertTypesForVehicle(vehicle: Vehicle, speedVal: number): readonly stri
   if (vehicle.status === 'offline') {
     return ['Signal GPS détecté/perdu', 'Batterie débranchée', 'Stop de longue durée', 'Enlèvement'];
   }
-  if (vehicle.status === 'idle') {
+  if (vehicle.status === 'idle' || vehicle.status === 'stopped') {
     return ['Stop', 'Stop de longue durée', 'Contact On/Off', 'Alerte de parc'];
   }
   const types = [
@@ -311,7 +311,7 @@ function commandStatusForVehicle(
   if (vehicle.status === 'offline') {
     return pick(rand, ['Échouée', 'Expirée', 'En attente'] as const);
   }
-  if (vehicle.status === 'idle') {
+  if (vehicle.status === 'idle' || vehicle.status === 'stopped') {
     return pick(rand, ['Exécutée', 'Exécutée', 'En attente'] as const);
   }
   return pick(rand, ['Exécutée', 'Exécutée', 'Exécutée', 'En attente'] as const);
@@ -328,8 +328,8 @@ export function buildTrackingRows(vehicles: Vehicle[]): TrackingRow[] {
         ? Math.floor(rand() * 40)
         : Math.floor(25 + rand() * 75);
     const [lat, lng] = vehicle.coordinates;
-    const contactOn = vehicle.status === 'active' || (vehicle.status === 'idle' && rand() > 0.35);
-    const engineOn = vehicle.status === 'active' || (vehicle.status === 'idle' && rand() > 0.5);
+    const contactOn = vehicle.status === 'active' || vehicle.status === 'idle';
+    const engineOn = vehicle.status === 'active' || vehicle.status === 'idle';
 
     return {
       id: `trk-${vehicle.id}`,

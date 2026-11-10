@@ -21,6 +21,7 @@ export function withVehiclePopupDemo(vehicle: Vehicle): Vehicle {
     fuelVolume: Math.round(70 * fuelLevel) / 100,
     fuelConsumption: (64 + seed % 38) / 10,
     driverId: `CH-${String(1000 + seed % 9000)}`,
+    driverPhone: `+216 ${[20, 22, 25, 50, 55, 98, 97, 92][seed % 8]} ${String(seed % 1000).padStart(3, '0')} ${String((seed >>> 10) % 1000).padStart(3, '0')}`,
     drivingTime: `${2 + seed % 4} h ${String(seed % 60).padStart(2, '0')} min`,
     serialNumber: `FMC130-${String(seed % 100000000).padStart(8, '0')}`,
     chipNumber: '93701195',

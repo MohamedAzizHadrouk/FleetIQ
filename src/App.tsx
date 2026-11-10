@@ -39,6 +39,7 @@ import { buildMockTrajectoryPath } from './features/suivie/vehicle-row-actions';
 import { roadPlacement } from './features/fleetiq/road-position';
 import type { TrajectoryFocus, TrajectoryLayer, VehicleTrajectory } from './features/fleetiq/trajectory-data';
 import { TRAJECTORY_COLORS } from './features/fleetiq/trajectory-data';
+import { addressNear } from './data/tunisia-places';
 import type { TrajectoryMapLayer } from './components/MapControls';
 import { defaultGeoVisibility } from './types/map-overlays';
 import type { VehicleCardActions } from './components/VehicleMapInfoCard';
@@ -70,7 +71,7 @@ function pickSeeded<T>(rand: () => number, arr: readonly T[]): T {
 
 // Generate mock vehicles around Tunisia (map center = Tunis)
 const generateMockVehicles = (): Vehicle[] => {
-  const statuses: VehicleStatus[] = ['active', 'idle', 'offline'];
+  const statuses: VehicleStatus[] = ['active', 'idle', 'stopped', 'offline'];
   const drivers = [
     'Mohamed Ben Ali',
     'Fatma Trabelsi',
@@ -154,7 +155,7 @@ const generateMockVehicles = (): Vehicle[] => {
             : `Il y a ${1 + Math.floor(rand() * 4)} min`,
       };
     }
-    if (status === 'idle') {
+    if (status === 'idle' || status === 'stopped') {
       return {
         speed: 0,
         batteryLevel: 20 + Math.floor(rand() * 80),
@@ -348,7 +349,7 @@ const generateMockVehicles = (): Vehicle[] => {
     {
       id: 'v-rj-04',
       name: 'Fleet-RJ-04',
-      status: 'idle',
+      status: 'stopped',
       speed: 0,
       batteryLevel: 42,
       lastUpdate: 'Il y a 8 min',
@@ -414,11 +415,8 @@ const generateMockVehicles = (): Vehicle[] => {
       ...(road && {
         coordinates: road.coordinates,
         heading: road.heading,
-        location: isShowcase
-          ? v.location
-          : v.status === 'active'
-            ? `${road.route.from} → ${road.route.to}`
-            : road.route.to,
+        // Current position, not the trip's start → destination
+        location: isShowcase ? v.location : addressNear(road.coordinates),
       }),
       imei,
       supportsCurrentPosition: Boolean(imei) && rand() < 0.7,
@@ -560,6 +558,7 @@ function AppShell() {
     const counts: Record<VehicleStatus, number> = {
       active: 0,
       idle: 0,
+      stopped: 0,
       offline: 0,
     };
     for (const v of MOCK_VEHICLES) {
