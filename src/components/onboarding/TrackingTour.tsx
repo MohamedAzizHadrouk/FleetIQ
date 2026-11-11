@@ -32,7 +32,7 @@ const STEP_LIST: TourStep[] = [
           Ce tutoriel vous présente, fonctionnalité par fonctionnalité, comment suivre votre flotte en temps réel :
           carte, tableau de suivi, arrêts, trajectoires et alertes.
         </p>
-        <p className="mt-2">Comptez environ 3 minutes. Vous pouvez le quitter à tout moment.</p>
+        <p className="mt-2">Comptez environ 4 minutes. Vous pouvez le quitter à tout moment.</p>
       </>
     ),
   },
@@ -43,9 +43,10 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'Chaque véhicule apparaît avec son icône et une couleur selon son état : en marche, à l’arrêt, hors ligne ou en alerte.',
+          'Chaque véhicule a une couleur selon son état : vert = en mouvement, orange = contact ON à 0 km/h, rouge = à l’arrêt (contact OFF), gris = hors ligne. Un halo pulsant signale une alerte critique.',
           'Les véhicules proches sont regroupés en bulles : cliquez dessus pour les afficher.',
-          'Cliquez sur un véhicule pour ouvrir sa fiche (conducteur, vitesse, carburant, documents…).',
+          'Cliquez sur un véhicule : une petite carte s’ouvre au-dessus (contact ON/OFF, statut, adresse actuelle, vitesse, date / heure).',
+          '« Plus de détails » ouvre la fiche complète à gauche : aperçu, détails, maintenance et alertes, avec le téléphone du chauffeur.',
         ]}
       />
     ),
@@ -71,7 +72,7 @@ const STEP_LIST: TourStep[] = [
     content: (
       <>
         <p>La position actuelle de chaque véhicule : date, vitesse, adresse, conducteur et département.</p>
-        <Points items={['Cliquez sur une ligne pour localiser le véhicule sur la carte.']} />
+        <Points items={['Cliquez sur une ligne : la carte zoome sur le véhicule et affiche sa petite carte au-dessus.']} />
       </>
     ),
   },
@@ -91,6 +92,7 @@ const STEP_LIST: TourStep[] = [
         items={[
           'Recherchez un véhicule par matricule, IMEI ou nom.',
           'Cochez « Tous les véhicules » pour tout sélectionner, ou choisissez-les un par un.',
+          'Dans Trajectoire, un seul véhicule à la fois : en choisir un autre remplace le premier.',
         ]}
       />
     ),
@@ -100,6 +102,20 @@ const STEP_LIST: TourStep[] = [
     placement: 'bottom',
     title: 'Rechercher dans le tableau',
     content: 'Filtrez instantanément les lignes affichées : adresse, conducteur, matricule…',
+  },
+  {
+    target: '[data-tour="filter-apply"]',
+    placement: 'bottom',
+    title: 'Appliquer les filtres',
+    content: (
+      <Points
+        items={[
+          'Choisissez d’abord vos filtres (véhicules, période, types d’alerte) : le tableau ne change pas encore.',
+          'Le bouton devient bleu avec un point blanc quand votre choix diffère de l’affichage.',
+          'Cliquez sur « Appliquer » : les données se chargent une seule fois, pour votre choix.',
+        ]}
+      />
+    ),
   },
   {
     target: '[data-tour="filter-columns"]',
@@ -135,7 +151,8 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'Sélectionnez un ou plusieurs véhicules : les arrêts et circulations s’affichent, regroupés par véhicule et avec une couleur par véhicule.',
+          'La vue s’ouvre vide : sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer ».',
+          'Les arrêts et circulations s’affichent, regroupés par véhicule, avec une couleur par véhicule.',
           'Sur la carte, chaque arrêt est un panneau STOP et chaque circulation un tracé.',
           'Cliquez sur un véhicule pour sa vue globale, ou sur l’œil pour masquer son trajet.',
         ]}
@@ -148,7 +165,7 @@ const STEP_LIST: TourStep[] = [
     data: { tab: 'stop_circulation' },
     title: 'Choisir la période',
     content:
-      'Dans les vues Stop & Circulation, Trajectoire et Alertes, définissez la date et l’heure de début et de fin. Le tableau et la carte se mettent à jour.',
+      'Dans les vues Stop & Circulation, Trajectoire et Alertes, définissez la date et l’heure de début et de fin, puis cliquez sur « Appliquer » pour mettre à jour le tableau et la carte.',
   },
   {
     target: '[data-tour="tab-trajectoire"]',
@@ -158,9 +175,25 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'Le parcours détaillé d’un véhicule, sur les routes réelles.',
-          'Basculez entre le mode lignes et le mode graphique de vitesse.',
-          'Animez le trajet sur la carte, consultez les statistiques ou enregistrez-le comme route.',
+          'La vue s’ouvre vide : choisissez un véhicule, puis cliquez sur « Appliquer ».',
+          'Le parcours détaillé s’affiche sur les routes réelles. Basculez entre le mode lignes et le graphique de vitesse (molette pour zoomer, cadre bleu pour vous déplacer, marqueurs contact ON/OFF).',
+          'Chaque trajectoire appliquée reste sur la carte comme une couche : choisissez un autre véhicule pour comparer les parcours.',
+          'Animez le trajet, consultez les statistiques ou enregistrez-le comme route.',
+        ]}
+      />
+    ),
+  },
+  {
+    target: '[aria-label="Couches des trajectoires"]',
+    placement: 'left',
+    data: { tab: 'trajectoire' },
+    title: 'Couches des trajectoires',
+    content: (
+      <Points
+        items={[
+          'Ce bouton apparaît dès qu’une trajectoire est affichée ; le chiffre indique le nombre de couches.',
+          'Cliquez sur un véhicule pour centrer la carte, sur l’œil pour masquer ou afficher, sur la corbeille pour supprimer.',
+          '« Tout masquer », « Tout afficher » et « Tout supprimer » agissent sur toutes les couches.',
         ]}
       />
     ),
@@ -173,7 +206,8 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'Toutes les alertes de la période : excès de vitesse, carburant, geofences, SOS…',
+          'La vue s’ouvre vide, sans filtre : choisissez les véhicules, les types d’alerte et la période, puis cliquez sur « Appliquer ».',
+          'Excès de vitesse, carburant, geofences, SOS… Sans sélection, « Appliquer » affiche toutes les alertes.',
           'Cliquez sur une ligne : l’icône de l’alerte apparaît sur la carte avec ses détails.',
         ]}
       />
@@ -184,7 +218,7 @@ const STEP_LIST: TourStep[] = [
     placement: 'bottom',
     data: { tab: 'alertes' },
     title: 'Filtrer par type d’alerte',
-    content: 'Recherchez et cochez les types d’alerte à afficher. « Toutes les alertes » les sélectionne toutes.',
+    content: 'Recherchez et cochez les types d’alerte à afficher. « Toutes les alertes » les sélectionne toutes. Le bouton « Appliquer » se trouve juste après.',
   },
   {
     target: '[data-tour="map-controls"]',
@@ -195,6 +229,7 @@ const STEP_LIST: TourStep[] = [
         items={[
           'Opérations géographiques : créez des geofences, des points d’intérêt et des routes.',
           'Visibilité et couches : choisissez ce qui s’affiche et le fond de carte.',
+          'Couches des trajectoires : gérez les trajectoires gardées sur la carte (bouton visible dès qu’il y en a une).',
         ]}
       />
     ),
@@ -203,7 +238,14 @@ const STEP_LIST: TourStep[] = [
     target: '[aria-label="Ouvrir le Monitoring Center"]',
     placement: 'top-end',
     title: 'Monitoring Center',
-    content: 'L’état de la flotte d’un coup d’œil : véhicules en marche, à l’arrêt, hors ligne et en alerte. Cliquez pour le détail.',
+    content: (
+      <Points
+        items={[
+          'L’état de la flotte d’un coup d’œil : en mouvement (vert), contact ON · 0 km/h (orange), à l’arrêt (rouge), hors ligne (gris), et véhicules en alerte.',
+          'Ouvrez-le pour le détail, puis cliquez sur un statut pour n’afficher que ces véhicules sur la carte.',
+        ]}
+      />
+    ),
   },
   {
     target: '[aria-label$="assistant TUNAVI"]',
@@ -251,7 +293,7 @@ const inputFilled = (selector: string) =>
 const TASKS: Record<string, TourTask> = {
   '.leaflet-container': {
     instruction: 'Zoomez avec la molette, déplacez la carte ou cliquez sur une bulle de véhicules.',
-    hint: 'Un clic sur un véhicule ouvre sa fiche ; fermez-la avec ✕ pour retrouver le tableau.',
+    hint: 'Un clic sur un véhicule ouvre sa petite carte ; « Plus de détails » ouvre la fiche complète.',
     highlight: '.leaflet-container',
     events: ['wheel', 'click'],
     within: '.leaflet-container',
@@ -270,7 +312,7 @@ const TASKS: Record<string, TourTask> = {
     within: '[data-tour^="tab-"]',
   },
   '[data-tour="tab-suivie_generale"]': {
-    instruction: 'Cliquez sur une ligne du tableau pour localiser le véhicule sur la carte.',
+    instruction: 'Cliquez sur une ligne du tableau : la carte zoome sur le véhicule et ouvre sa petite carte.',
     highlight: '[data-tour="table"]',
     events: ['click'],
     within: '[data-tour="table"] tbody tr',
@@ -291,6 +333,13 @@ const TASKS: Record<string, TourTask> = {
     highlight: '[data-tour="filter-search"]',
     check: () => inputFilled('[data-tour="filter-search"] input'),
   },
+  '[data-tour="filter-apply"]': {
+    instruction: 'Décochez un véhicule dans « Véhicules », puis cliquez sur « Appliquer ».',
+    hint: 'Le tableau ne change qu’au moment du clic.',
+    highlight: '[data-tour="filter-apply"], [data-tour="filter-vehicles"]',
+    events: ['click'],
+    within: '[data-tour="filter-apply"]:not(:disabled), [data-tour="filter-vehicles"] button:not(:disabled)',
+  },
   '[data-tour="filter-columns"]': {
     instruction: 'Ouvrez le menu, puis masquez ou affichez une colonne.',
     highlight: '[data-tour="filter-columns"]',
@@ -310,9 +359,9 @@ const TASKS: Record<string, TourTask> = {
     within: '[data-tour="footer"] button:not([aria-label^="Exporter"]), [data-tour="footer"] select',
   },
   '[data-tour="tab-stop_circulation"]': {
-    instruction: 'Sélectionnez un ou deux véhicules dans le filtre « Véhicules », puis regardez la carte.',
+    instruction: 'Sélectionnez un ou deux véhicules dans « Véhicules », cliquez sur « Appliquer », puis regardez la carte.',
     hint: 'Cliquez ensuite sur le nom d’un véhicule pour sa vue globale.',
-    highlight: '[data-tour="filter-vehicles"]',
+    highlight: '[data-tour="filter-vehicles"], [data-tour="filter-apply"]',
     check: () =>
       document.querySelector('[data-tour="tab-stop_circulation"]')?.getAttribute('aria-current') === 'page' &&
       document.querySelectorAll('[data-tour="table"] tbody tr').length > 1,
@@ -324,17 +373,25 @@ const TASKS: Record<string, TourTask> = {
     within: '[data-tour="filter-period"]',
   },
   '[data-tour="tab-trajectoire"]': {
-    instruction: 'Cliquez sur une ligne pour la voir sur la carte, ou sur ▶ pour animer le trajet.',
-    hint: 'Fermez la fenêtre d’animation pour retrouver le tableau.',
-    highlight: '[data-tour="table"]',
+    instruction: 'Choisissez un véhicule dans « Véhicules », puis cliquez sur « Appliquer ».',
+    hint: 'Recommencez avec un autre véhicule : les deux trajectoires restent sur la carte.',
+    highlight: '[data-tour="filter-vehicles"], [data-tour="filter-apply"]',
+    check: () =>
+      document.querySelector('[data-tour="tab-trajectoire"]')?.getAttribute('aria-current') === 'page' &&
+      document.querySelectorAll('[data-tour="table"] tbody tr').length > 1,
+  },
+  '[aria-label="Couches des trajectoires"]': {
+    instruction: 'Ouvrez les couches, puis masquez une trajectoire avec l’œil.',
+    highlight: '[aria-label="Couches des trajectoires"]',
     events: ['click'],
-    within: '[data-tour="table"] tbody tr, [aria-label="Animer le trajet sur la carte"]',
+    within: '[aria-label="Couches des trajectoires"] + div button[title="Masquer"], [aria-label="Couches des trajectoires"] + div button[title="Afficher"]',
   },
   '[data-tour="tab-alertes"]': {
-    instruction: 'Cliquez sur une alerte : son icône et ses détails s’affichent sur la carte.',
-    highlight: '[data-tour="table"]',
+    instruction: 'Cliquez sur « Appliquer » pour charger les alertes, puis cliquez sur une alerte.',
+    hint: 'Son icône et ses détails s’affichent sur la carte.',
+    highlight: '[data-tour="filter-apply"], [data-tour="table"]',
     events: ['click'],
-    within: '[data-tour="table"] tbody tr',
+    within: '[data-tour="table"] tbody tr[data-vehicle-row]',
   },
   '[data-tour="filter-alert-types"]': {
     instruction: 'Ouvrez « Types » et recherchez « carburant ».',
@@ -348,7 +405,7 @@ const TASKS: Record<string, TourTask> = {
     within: '[data-tour="map-controls"]',
   },
   '[aria-label="Ouvrir le Monitoring Center"]': {
-    instruction: 'Ouvrez le Monitoring Center pour voir l’état de la flotte.',
+    instruction: 'Ouvrez le Monitoring Center, puis cliquez sur « À l’arrêt » pour filtrer la carte.',
     highlight: '[aria-label="Ouvrir le Monitoring Center"]',
     events: ['click'],
     within: '[aria-label="Ouvrir le Monitoring Center"]',
