@@ -189,7 +189,7 @@ function GroupByDropZone({
       title="Glissez un en-tête de colonne ici pour grouper le tableau"
       data-tour="filter-group"
       data-grouped={groupByColumnId ? 'true' : 'false'}
-      className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[220px]' : 'w-[104px]'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
+      className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[220px] min-w-0' : 'w-9 justify-center'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
         isOver
           ? 'border-blue-500 bg-blue-50'
           : groupByColumnId
@@ -225,9 +225,8 @@ function GroupByDropZone({
           </button>
         </>
       ) : (
-        <p className="flex items-center justify-center gap-1 text-[11px] font-medium text-slate-500 truncate w-full">
-          <Group className="w-3.5 h-3.5 shrink-0" />
-          Grouper
+        <p className="flex items-center justify-center text-slate-500 w-full" aria-label="Grouper">
+          <Group className="w-4 h-4 shrink-0" />
         </p>
       )}
     </div>
@@ -2014,10 +2013,10 @@ export function VehicleListPanel({
               </nav>
               <div className="px-3 py-2 flex flex-col gap-1.5 overflow-visible">
                 {/* Une seule ligne — filtres, recherche, regroupement, exports */}
-                <div className={`w-full flex items-center gap-1.5 ${draftAction === 'suivie_generale' ? 'flex-nowrap' : 'flex-wrap'}`}>
+                <div className="w-full flex flex-nowrap items-center gap-1.5">
                   <div
                     data-tour="filter-vehicles"
-                    className="order-2 relative flex-[1_1_170px] min-w-[130px] max-w-[260px]"
+                    className="order-2 relative flex-[1_1_170px] min-w-[118px] max-w-[260px]"
                     ref={vehicleDropdownRef}
                   >
                     <button
@@ -2195,7 +2194,7 @@ export function VehicleListPanel({
                         }
                         title="Types d'alerte"
                         aria-label="Types d'alerte"
-                        className="h-9 flex items-center gap-2 bg-white border border-[#DCE3EF] hover:border-[#BFD3FF] hover:bg-[#F7F9FF] rounded-xl px-3 text-[13px] transition-colors"
+                        className="h-9 flex items-center gap-1.5 bg-white border border-[#DCE3EF] hover:border-[#BFD3FF] hover:bg-[#F7F9FF] rounded-xl px-2.5 text-[13px] transition-colors"
                       >
                         <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
                         <span className="text-slate-700 font-medium whitespace-nowrap">Types</span>
@@ -2264,7 +2263,7 @@ export function VehicleListPanel({
                     </div>
                   )}
 
-                  <div data-tour="filter-search" className="order-3 relative flex-[1_1_140px] min-w-[90px]">
+                  <div data-tour="filter-search" className="order-3 relative flex-[1_1_140px] min-w-[80px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A94A6] pointer-events-none" />
                     <input
                       type="text"
@@ -2314,7 +2313,7 @@ export function VehicleListPanel({
                     disabled={!filtersDirty}
                     title={filtersDirty ? 'Appliquer les filtres' : 'Les filtres sont à jour'}
                     aria-label="Appliquer les filtres"
-                    className={`${draftAction === 'alertes' ? 'order-4' : 'order-3'} shrink-0 h-9 inline-flex items-center gap-1.5 px-3.5 rounded-xl text-[13px] font-bold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F6BFF] ${
+                    className={`order-last ml-auto shrink-0 h-9 inline-flex items-center gap-1.5 px-3 rounded-xl text-[13px] font-bold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2F6BFF] ${
                       filtersDirty
                         ? 'bg-[#2F6BFF] text-white shadow-[0_2px_8px_rgba(47,107,255,0.28)] hover:bg-[#2558D9]'
                         : 'bg-[#F0F3F9] text-[#8A94A6] cursor-default'
