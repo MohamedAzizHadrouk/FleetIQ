@@ -117,6 +117,100 @@ function AlertFocusLayer({ focus }: { focus: TrajectoryFocus }) {
   );
 }
 
+/** Small round alert badge placed on a trajectory (no pulse, so a route with many alerts stays calm) */
+const trajAlertIconCache = new Map<string, L.DivIcon>();
+function trajAlertIconFor(type: string, active: boolean): L.DivIcon {
+  const key = `${type}|${active ? 1 : 0}`;
+  let icon = trajAlertIconCache.get(key);
+  if (!icon) {
+    const { Icon, severity } = alertVisual(type);
+    const { color } = ALERT_SEVERITY_STYLE[severity];
+    const size = active ? 34 : 28;
+    const glyph = renderToStaticMarkup(createElement(Icon, { size: active ? 17 : 14, color: '#fff', strokeWidth: 2.4 }));
+    icon = L.divIcon({
+      className: 'trip-replay-pin',
+      html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2.5px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(15,27,61,.35)${active ? `,0 0 0 5px ${color}40` : ''};cursor:pointer">${glyph}</div>`,
+      iconSize: [size, size],
+      iconAnchor: [size / 2, size / 2],
+    });
+    trajAlertIconCache.set(key, icon);
+  }
+  return icon;
+}
+
+/**
+ * Alerts raised along the displayed trajectories. A click zooms on the alert
+ * and shows its type, date / time, place and speed.
+ */
+function TrajectoryAlertsLayer({ layers }: { layers: TrajectoryLayer[] }) {
+  const map = useMap();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const alerts = layers.flatMap((l) => (l.alerts ?? []).map((a) => ({ ...a, vehicle: l.label })));
+  const openStillShown = !openId || alerts.some((a) => a.id === openId);
+  useEffect(() => {
+    if (!openStillShown) setOpenId(null);
+  }, [openStillShown]);
+
+  return (
+    <>
+      {alerts.map((a) => {
+        const open = a.id === openId;
+        const { Icon, severity } = alertVisual(a.type);
+        const sev = ALERT_SEVERITY_STYLE[severity];
+        return (
+          <Marker
+            key={a.id}
+            position={a.position}
+            icon={trajAlertIconFor(a.type, open)}
+            zIndexOffset={open ? 3200 : 2600}
+            eventHandlers={{
+              click: () => {
+                if (open) {
+                  setOpenId(null);
+                  return;
+                }
+                setOpenId(a.id);
+                map.flyTo(a.position, Math.max(map.getZoom(), 16), { animate: true, duration: 0.9 });
+              },
+            }}
+          >
+            {open ? (
+              <Tooltip key="open" permanent direction="top" offset={[0, -20]} opacity={1} className="fiq-traj-tooltip">
+                <div className="fiq-font w-[250px] text-[#0F1B3D]">
+                  <div className="flex items-start gap-2.5 mb-2.5">
+                    <span
+                      className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0"
+                      style={{ background: sev.soft, color: sev.color }}
+                    >
+                      <Icon className="w-[18px] h-[18px]" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-extrabold leading-tight whitespace-normal">{a.type}</div>
+                      <div className="mt-0.5 text-[11.5px] text-[#5B6B8C]">{a.vehicle}</div>
+                    </div>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <TipRow icon={<CalendarClock className="w-3.5 h-3.5" />} label="Date / heure" value={a.date} />
+                    <TipRow icon={<Gauge className="w-3.5 h-3.5" />} label="Vitesse" value={a.speed} />
+                  </div>
+                  <div className="mt-2 pt-2 border-t border-[#EEF1F7] flex items-start gap-1.5 text-[11.5px] text-[#5B6B8C] whitespace-normal leading-snug">
+                    <MapPin className="w-3.5 h-3.5 mt-px shrink-0 text-[#2F6BFF]" />
+                    <span>{a.place}</span>
+                  </div>
+                </div>
+              </Tooltip>
+            ) : (
+              <Tooltip key="hover" direction="top" offset={[0, -16]} opacity={1} className="fiq-traj-tooltip">
+                <span className="fiq-font text-[12px] font-extrabold text-[#0F1B3D]">{a.type}</span>
+              </Tooltip>
+            )}
+          </Marker>
+        );
+      })}
+    </>
+  );
+}
+
 const STOP_ICON = L.divIcon({
   className: 'trip-replay-pin',
   html: `<svg width="34" height="34" viewBox="0 0 34 34" style="filter:drop-shadow(0 3px 6px rgba(15,27,61,.35))"><path d="M11 1h12l10 10v12L23 33H11L1 23V11z" fill="#E5484D" stroke="#fff" stroke-width="2.5"/><text x="17" y="20.5" text-anchor="middle" font-family="Plus Jakarta Sans,Arial,sans-serif" font-size="8.5" font-weight="800" fill="#fff">STOP</text></svg>`,
@@ -1735,6 +1829,8 @@ export function MapView({
               </Polyline>
             </Fragment>
           ))}
+
+        <TrajectoryAlertsLayer layers={trajectoryLayers.filter((l) => !l.runs && !l.stops && l.alerts?.length)} />
 
         {trajectoryFocus &&
           (trajectoryFocus.kind === 'Alert' && trajectoryFocus.alert ? (

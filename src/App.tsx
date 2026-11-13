@@ -40,6 +40,7 @@ import { roadPlacement } from './features/fleetiq/road-position';
 import type { TrajectoryFocus, TrajectoryLayer, VehicleTrajectory } from './features/fleetiq/trajectory-data';
 import { TRAJECTORY_COLORS } from './features/fleetiq/trajectory-data';
 import { addressNear } from './data/tunisia-places';
+import { iconKey, useVehicleIconOverrides } from './features/parc/vehicle-icon-overrides';
 import type { TrajectoryMapLayer } from './components/MapControls';
 import { defaultGeoVisibility } from './types/map-overlays';
 import type { VehicleCardActions } from './components/VehicleMapInfoCard';
@@ -503,6 +504,8 @@ function AppShell() {
   /** Trajectoire view: every applied vehicle stays on the map as a layer until it is removed */
   const [trajMapLayers, setTrajMapLayers] = useState<TrajectoryMapLayer[]>([]);
   const lastTrajEmitRef = useRef('');
+  /** Newly applied trajectory: the map is fitted on it once the overlays are ready */
+  const [pendingTrajFit, setPendingTrajFit] = useState<[number, number][] | null>(null);
   const handleTrajectoryLayersChange = useCallback(
     (layers: TrajectoryLayer[], mode: 'trajectoire' | 'stop_circulation' | null) => {
       if (mode !== 'trajectoire') {
@@ -514,6 +517,7 @@ function AppShell() {
       const key = layers.map((l) => l.vehicleId).join(',');
       const isNewApply = key !== lastTrajEmitRef.current;
       lastTrajEmitRef.current = key;
+      if (isNewApply && layers.length) setPendingTrajFit(layers.flatMap((l) => l.path));
       setTrajMapLayers((prev) => {
         let next = prev;
         for (const layer of layers) {
@@ -554,6 +558,16 @@ function AppShell() {
   const [statusFilter, setStatusFilter] = useState<Set<VehicleStatus>>(
     () => new Set()
   );
+  /** Fleet with the icon each vehicle was given in the Parc module */
+  const iconOverrides = useVehicleIconOverrides();
+  const trackedVehicles = useMemo(
+    () =>
+      MOCK_VEHICLES.map((v) => {
+        const icon = iconOverrides[iconKey(v.matricule)];
+        return icon && icon !== v.iconType ? { ...v, iconType: icon } : v;
+      }),
+    [iconOverrides]
+  );
   const statusCounts = useMemo(() => {
     const counts: Record<VehicleStatus, number> = {
       active: 0,
@@ -575,7 +589,7 @@ function AppShell() {
     });
   }, []);
   const mapVehicles = useMemo(() => {
-    let list = MOCK_VEHICLES;
+    let list = trackedVehicles;
     if (suivieFilteredVehicleIds) {
       const idSet = new Set(suivieFilteredVehicleIds);
       list = list.filter((v) => idSet.has(v.id));
@@ -584,23 +598,23 @@ function AppShell() {
       list = list.filter((v) => statusFilter.has(v.status));
     }
     return list;
-  }, [suivieFilteredVehicleIds, statusFilter]);
+  }, [trackedVehicles, suivieFilteredVehicleIds, statusFilter]);
 
   /**
    * Trip focus: while a trip is shown or replayed, only the selected vehicle
    * stays on the map so the vehicle and its route are clearly visible.
    */
   const [showOthersInTrip, setShowOthersInTrip] = useState(false);
-  const tripFocus = !!selectedVehicleId && (!!tripReplay || !!trackingPath);
+  const tripFocus = !!selectedVehicleId && !!tripReplay;
   useEffect(() => {
     if (!tripFocus) setShowOthersInTrip(false);
   }, [tripFocus]);
   const displayedVehicles = useMemo(
     () =>
       tripFocus && !showOthersInTrip
-        ? MOCK_VEHICLES.filter((v) => v.id === selectedVehicleId)
+        ? trackedVehicles.filter((v) => v.id === selectedVehicleId)
         : mapVehicles,
-    [tripFocus, showOthersInTrip, selectedVehicleId, mapVehicles]
+    [tripFocus, showOthersInTrip, selectedVehicleId, mapVehicles, trackedVehicles]
   );
   // Monitoring Center starts collapsed so the map stays clear
   const [isMonitoringCollapsed, setIsMonitoringCollapsed] = useState(true);
@@ -614,6 +628,12 @@ function AppShell() {
   const [isAIChatOpen, setIsAIChatOpen] = useState(false);
   const [hideBadges, setHideBadges] = useState(false);
   const mapOverlays = useMapOverlays();
+  const { setFitBoundsPoints: fitMapTo } = mapOverlays;
+  useEffect(() => {
+    if (!pendingTrajFit) return;
+    if (pendingTrajFit.length > 1) fitMapTo(pendingTrajFit);
+    setPendingTrajFit(null);
+  }, [pendingTrajFit, fitMapTo]);
 
   /** Guided tour running (react-joyride), started from the module selection */
   const [activeTour, setActiveTour] = useState<OnboardingModuleId | null>(null);
@@ -1114,7 +1134,7 @@ function AppShell() {
               mapCenter={mapCenter}
               mapCenterZoom={mapCenterZoom}
               trackingPath={trackingPath}
-              fleetVehicles={MOCK_VEHICLES}
+              fleetVehicles={trackedVehicles}
               vehicleCardActions={vehicleCardActions}
               tripReplay={tripReplay}
               trajectoryFocus={trajectoryFocus}
@@ -1482,7 +1502,7 @@ function AppShell() {
                 />
               ) : placingGeoOnly ? null : (
                 <VehicleListPanel
-                  vehicles={MOCK_VEHICLES}
+                  vehicles={trackedVehicles}
                   selectedVehicleId={selectedVehicleId}
                   onSelectVehicle={handleVehicleSelect}
                   isCollapsed={isVehicleListCollapsed}

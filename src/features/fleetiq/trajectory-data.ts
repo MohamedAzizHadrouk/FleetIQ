@@ -249,6 +249,8 @@ export interface TrajectoryLayer {
   stops?: { id: string; position: LatLng; start: number; durationMin: number; place: string }[];
   /** Stop & Circulation view: each driving segment drawn separately */
   runs?: LatLng[][];
+  /** Trajectoire view: alerts raised along the route (clickable icons on the map) */
+  alerts?: { id: string; type: string; date: string; speed: string; place: string; position: LatLng }[];
 }
 
 /** Distinct, design-system friendly colours for several trajectories at once */

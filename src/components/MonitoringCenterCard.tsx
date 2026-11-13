@@ -1,4 +1,4 @@
-import { Activity, AlertTriangle, ChevronDown, ChevronRight, Navigation, Power, Square, WifiOff, X } from 'lucide-react';
+import { Activity, AlertTriangle, ChevronDown, ChevronRight, Navigation, Power, Square, Wifi, WifiOff, X } from 'lucide-react';
 import type { ComponentType } from 'react';
 import type { VehicleStatus } from '@/types';
 import { FIQ, FIQ_STATUS_COLOR, FIQ_STATUS_LABEL, type FleetiqMarkerStatus } from '@/features/fleetiq/vehicle-sprite';
@@ -113,6 +113,20 @@ export function MonitoringCenterCard({
           {ROWS.map((r) => (
             <span key={r.status} style={{ width: `${pct(statusCounts[r.status])}%`, background: statusColor(r.marker) }} />
           ))}
+        </div>
+      </div>
+
+      {/* Connected vs not connected */}
+      <div className="grid grid-cols-2 gap-2 px-4 pt-3" aria-label="Connexion des véhicules">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#ECFDF3] border border-[#BBF7D0]">
+          <Wifi className="w-4 h-4 text-[#16A34A] shrink-0" />
+          <span className="flex-1 min-w-0 text-xs font-semibold text-[#166534] truncate">Connectés</span>
+          <span className="text-[15px] font-extrabold tabular-nums text-[#166534]">{total - statusCounts.offline}</span>
+        </div>
+        <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-[#F0F3F9] border border-[#E3E9F4]">
+          <WifiOff className="w-4 h-4 text-[#8A94A6] shrink-0" />
+          <span className="flex-1 min-w-0 text-xs font-semibold text-[#5B6B8C] truncate">Non connectés</span>
+          <span className="text-[15px] font-extrabold tabular-nums text-[#5B6B8C]">{statusCounts.offline}</span>
         </div>
       </div>
 

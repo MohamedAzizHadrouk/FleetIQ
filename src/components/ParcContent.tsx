@@ -1,3 +1,4 @@
+import { setVehicleIconOverride } from '@/features/parc/vehicle-icon-overrides';
 import React, { useEffect, useState } from 'react';
 import {
   Users,
@@ -1088,6 +1089,8 @@ function VehiclesContent() {
   );
 
   const handleSave = (data: FleetVehicle) => {
+    // The tracking module (table + map) shows the icon chosen here
+    if (data.matricule && data.iconType) setVehicleIconOverride(data.matricule, data.iconType);
     if (editing) {
       setVehicles((prev) =>
         prev.map((v) => (v.id === editing.id ? { ...data, id: editing.id } : v))

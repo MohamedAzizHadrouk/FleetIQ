@@ -71,8 +71,14 @@ const STEP_LIST: TourStep[] = [
     title: 'Suivi général',
     content: (
       <>
-        <p>La position actuelle de chaque véhicule : date, vitesse, adresse, conducteur et département.</p>
-        <Points items={['Cliquez sur une ligne : la carte zoome sur le véhicule et affiche sa petite carte au-dessus.']} />
+        <p>La position actuelle de chaque véhicule, en temps réel, regroupée par département.</p>
+        <Points
+          items={[
+            'Chaque ligne montre l’icône du véhicule : pastille verte = connecté, grise = non connecté.',
+            'Les boutons « Connectés » et « Non connectés » donnent leur nombre et filtrent le tableau et la carte.',
+            'Cliquez sur une ligne : la carte zoome sur le véhicule et affiche sa petite carte au-dessus.',
+          ]}
+        />
       </>
     ),
   },
@@ -81,7 +87,7 @@ const STEP_LIST: TourStep[] = [
     placement: 'bottom',
     data: { tab: 'suivie_generale' },
     title: 'Grouper le tableau',
-    content: 'Glissez l’en-tête d’une colonne (par exemple « Département ») dans cette zone pour regrouper les lignes.',
+    content: 'Le suivi est groupé par département par défaut. Glissez un autre en-tête de colonne dans cette zone pour changer le regroupement, ou cliquez sur ✕ pour l’annuler.',
   },
   {
     target: '[data-tour="filter-vehicles"]',
@@ -92,7 +98,7 @@ const STEP_LIST: TourStep[] = [
         items={[
           'Recherchez un véhicule par matricule, IMEI ou nom.',
           'Cochez « Tous les véhicules » pour tout sélectionner, ou choisissez-les un par un.',
-          'Dans Trajectoire, un seul véhicule à la fois : en choisir un autre remplace le premier.',
+          'Dans Suivi général, le choix s’applique tout de suite. Dans Trajectoire, un seul véhicule à la fois.',
         ]}
       />
     ),
@@ -102,20 +108,6 @@ const STEP_LIST: TourStep[] = [
     placement: 'bottom',
     title: 'Rechercher dans le tableau',
     content: 'Filtrez instantanément les lignes affichées : adresse, conducteur, matricule…',
-  },
-  {
-    target: '[data-tour="filter-apply"]',
-    placement: 'bottom',
-    title: 'Appliquer les filtres',
-    content: (
-      <Points
-        items={[
-          'Choisissez d’abord vos filtres (véhicules, période, types d’alerte) : le tableau ne change pas encore.',
-          'Le bouton devient bleu avec un point blanc quand votre choix diffère de l’affichage.',
-          'Cliquez sur « Appliquer » : les données se chargent une seule fois, pour votre choix.',
-        ]}
-      />
-    ),
   },
   {
     target: '[data-tour="filter-columns"]',
@@ -160,6 +152,21 @@ const STEP_LIST: TourStep[] = [
     ),
   },
   {
+    target: '[data-tour="filter-apply"]',
+    placement: 'bottom',
+    data: { tab: 'stop_circulation' },
+    title: 'Appliquer les filtres',
+    content: (
+      <Points
+        items={[
+          'Dans Stop & Circulation, Trajectoire et Alertes, choisissez d’abord vos filtres (véhicules, période, types d’alerte) : le tableau ne change pas encore.',
+          'Le bouton devient bleu avec un point blanc quand votre choix diffère de l’affichage.',
+          'Cliquez sur « Appliquer » : les données se chargent une seule fois, pour votre choix.',
+        ]}
+      />
+    ),
+  },
+  {
     target: '[data-tour="filter-period"]',
     placement: 'bottom',
     data: { tab: 'stop_circulation' },
@@ -177,6 +184,7 @@ const STEP_LIST: TourStep[] = [
         items={[
           'La vue s’ouvre vide : choisissez un véhicule, puis cliquez sur « Appliquer ».',
           'Le parcours détaillé s’affiche sur les routes réelles. Basculez entre le mode lignes et le graphique de vitesse (molette pour zoomer, cadre bleu pour vous déplacer, marqueurs contact ON/OFF).',
+          'La carte se centre sur la trajectoire. Les icônes d’alerte le long du parcours s’ouvrent au clic : type, date / heure, lieu et vitesse.',
           'Chaque trajectoire appliquée reste sur la carte comme une couche : choisissez un autre véhicule pour comparer les parcours.',
           'Animez le trajet, consultez les statistiques ou enregistrez-le comme route.',
         ]}
@@ -206,9 +214,9 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'La vue s’ouvre vide, sans filtre : choisissez les véhicules, les types d’alerte et la période, puis cliquez sur « Appliquer ».',
+          'Tous les types d’alerte sont cochés par défaut : ajustez les filtres si besoin, puis cliquez sur « Appliquer ».',
           'Excès de vitesse, carburant, geofences, SOS… Sans sélection, « Appliquer » affiche toutes les alertes.',
-          'Cliquez sur une ligne : l’icône de l’alerte apparaît sur la carte avec ses détails.',
+          'Cliquez sur une ligne : la carte zoome sur l’alerte et affiche son nom, son adresse et ses détails.',
         ]}
       />
     ),
@@ -241,7 +249,7 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'L’état de la flotte d’un coup d’œil : en mouvement (vert), contact ON · 0 km/h (orange), à l’arrêt (rouge), hors ligne (gris), et véhicules en alerte.',
+          'L’état de la flotte d’un coup d’œil : véhicules connectés et non connectés, puis en mouvement (vert), contact ON · 0 km/h (orange), à l’arrêt (rouge), hors ligne (gris) et en alerte.',
           'Ouvrez-le pour le détail, puis cliquez sur un statut pour n’afficher que ces véhicules sur la carte.',
         ]}
       />
@@ -318,10 +326,11 @@ const TASKS: Record<string, TourTask> = {
     within: '[data-tour="table"] tbody tr',
   },
   '[data-tour="filter-group"]': {
-    instruction: 'Glissez l’en-tête « Département » du tableau dans la zone « Grouper ».',
+    instruction: 'Le tableau est groupé par département : repliez un groupe, ou glissez un autre en-tête (par exemple « Chauffeur ») dans la zone « Grouper ».',
     hint: 'Cliquez sur le ✕ de la zone pour annuler le regroupement.',
     highlight: '[data-tour="filter-group"]',
-    check: () => document.querySelector('[data-tour="filter-group"]')?.getAttribute('data-grouped') === 'true',
+    events: ['click'],
+    within: '[data-tour="table"] tbody tr:not([data-vehicle-row]), [data-tour="filter-group"] button',
   },
   '[data-tour="filter-vehicles"]': {
     instruction: 'Ouvrez la liste des véhicules et recherchez « 1000 ».',
@@ -334,7 +343,7 @@ const TASKS: Record<string, TourTask> = {
     check: () => inputFilled('[data-tour="filter-search"] input'),
   },
   '[data-tour="filter-apply"]': {
-    instruction: 'Décochez un véhicule dans « Véhicules », puis cliquez sur « Appliquer ».',
+    instruction: 'Choisissez un véhicule dans « Véhicules », puis cliquez sur « Appliquer ».',
     hint: 'Le tableau ne change qu’au moment du clic.',
     highlight: '[data-tour="filter-apply"], [data-tour="filter-vehicles"]',
     events: ['click'],

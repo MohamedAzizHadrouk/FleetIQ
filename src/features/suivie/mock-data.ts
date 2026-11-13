@@ -1,5 +1,6 @@
 import { formatHms, getVehicleTrajectory } from '@/features/fleetiq/trajectory-data';
 import type { Vehicle } from '@/types';
+import { addressNear } from '@/data/tunisia-places';
 import {
   SUIVIE_DEPARTMENTS,
   type SuivieAction,
@@ -454,7 +455,8 @@ export function buildAlertRows(vehicles: Vehicle[]): AlertRow[] {
         Vehicle: vehicle.matricule || vehicle.name,
         Date: formatDisplay(when),
         Type: type,
-        Address: seg?.place ?? vehicle.location,
+        // Name of the place where the alert was raised
+        Address: addressNear(position),
         Speed: `${speed} km/h`,
         Mileage: `${Math.floor(10000 + rand() * 70000)} km`,
         Chassis: `VIN${pad(1000 + index, 4)}`,
@@ -650,7 +652,7 @@ export function applySuivieFilters(
       if (end && rowDate > end) return false;
     }
 
-    if (action === 'alertes' && alertTypes.size > 0) {
+    if (action === 'alertes' && alertTypes.size > 0 && !alertTypes.has('Toutes les alertes')) {
       const concrete = [...alertTypes].filter((t) => t !== 'Toutes les alertes');
       if (concrete.length > 0) {
         const type = String((row as AlertRow).Type ?? '');

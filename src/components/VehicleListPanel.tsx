@@ -34,6 +34,8 @@ import {
   Columns3,
   ChevronsLeft,
   ChevronsRight,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { Vehicle, type VehicleStatus } from '../types';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -102,6 +104,7 @@ import {
 import {
   ALERT_TYPES,
   applySuivieFilters,
+  buildAlertRows,
   buildRowsForAction,
   getFilteredVehicleIds,
   type AppliedSuivieFilters,
@@ -109,6 +112,8 @@ import {
   type CommandRow,
 } from '@/features/suivie/mock-data';
 import { useColumnPreferences } from '@/features/suivie/useColumnPreferences';
+import { vehicleIcon3dMarkup } from '@/features/parc/vehicle-icons-3d';
+import { getVehicleIconOption } from '@/features/parc/vehicle-types';
 import {
   nextSortState,
   sortSuivieRows,
@@ -522,8 +527,35 @@ function renderCellContent(
   columnId: string,
   value: string,
   row: SuivieRow,
-  onZoomClick?: (row: SuivieRow) => void
+  onZoomClick?: (row: SuivieRow) => void,
+  vehicle?: Vehicle
 ): React.ReactNode {
+  if (columnId === 'name' && vehicle) {
+    const connected = vehicle.status !== 'offline';
+    const icon = getVehicleIconOption(vehicle.iconType);
+    return (
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span
+          className={`relative inline-flex items-center justify-center w-9 h-9 rounded-full shrink-0 ring-2 ${
+            connected ? 'bg-[#ECFDF3] ring-[#BBF7D0]' : 'bg-[#F0F3F9] ring-[#E3E9F4]'
+          }`}
+          title={`${icon.label} · ${connected ? 'Connecté' : 'Non connecté'}`}
+        >
+          <span
+            className={`inline-flex overflow-hidden rounded-full ${connected ? '' : 'grayscale opacity-60'}`}
+            dangerouslySetInnerHTML={{ __html: vehicleIcon3dMarkup(vehicle.iconType, 28) }}
+          />
+          <span
+            className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${
+              connected ? 'bg-[#16A34A]' : 'bg-[#8A94A6]'
+            }`}
+            aria-label={connected ? 'Connecté' : 'Non connecté'}
+          />
+        </span>
+        <span className={`truncate font-semibold ${connected ? 'text-[#0F1B3D]' : 'text-[#8A94A6]'}`}>{value || '—'}</span>
+      </div>
+    );
+  }
   if (columnId === 'Dashboard') {
     return <FleetReminderCell row={row} />;
   }
@@ -644,7 +676,7 @@ export function VehicleListPanel({
   const [sentCommands, setSentCommands] = useState<SuivieRow[]>([]);
   const [aadVehicle, setAadVehicle] = useState<Vehicle | null>(null);
   const [sort, setSort] = useState<ColumnSortState | null>(null);
-  const [groupByColumnId, setGroupByColumnId] = useState<string | null>(null);
+  const [groupByColumnId, setGroupByColumnId] = useState<string | null>('Department');
   const [groupBySortDir, setGroupBySortDir] = useState<'asc' | 'desc'>('asc');
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     new Set()
@@ -657,9 +689,12 @@ export function VehicleListPanel({
     useState<SuivieAction>('suivie_generale');
   // All vehicles are selected by default
   const [draftVehicles, setDraftVehicles] = useState<Set<string>>(() => new Set(vehicles.map((v) => v.id)));
+  // Every alert type is checked by default
   const [draftAlertTypes, setDraftAlertTypes] = useState<Set<string>>(
-    new Set()
+    () => new Set(ALERT_TYPES)
   );
+  /** Suivi général: show all, only connected or only not connected vehicles */
+  const [connectionFilter, setConnectionFilter] = useState<'all' | 'online' | 'offline'>('all');
 
   // Applied filter state
   const [applied, setApplied] = useState<AppliedSuivieFilters | null>(null);
@@ -841,9 +876,11 @@ export function VehicleListPanel({
   useEffect(() => {
     setSort(null);
     setTableSearch('');
-    setGroupByColumnId(null);
+    // Suivi général is grouped by department by default
+    setGroupByColumnId(activeAction === 'suivie_generale' ? 'Department' : null);
     setGroupBySortDir('asc');
     setCollapsedGroups(new Set());
+    setConnectionFilter('all');
   }, [activeAction]);
 
   useEffect(() => {
@@ -897,6 +934,19 @@ export function VehicleListPanel({
     return [...mine, ...filtered];
   }, [applied, vehicles, sentCommands, alertsAwaitingApply]);
 
+  /** Connected / not connected vehicles in the real-time list */
+  const connectionCounts = useMemo(() => {
+    let online = 0;
+    let offline = 0;
+    if (activeAction === 'suivie_generale') {
+      for (const row of scopedRows) {
+        if (vehicleById[row.vehicleId]?.status === 'offline') offline += 1;
+        else online += 1;
+      }
+    }
+    return { online, offline };
+  }, [activeAction, scopedRows, vehicleById]);
+
   const tableRows = useMemo(() => {
     let rows = scopedRows;
     if (activeAction === 'suivie_generale' && statusFilter.size > 0) {
@@ -905,12 +955,16 @@ export function VehicleListPanel({
         return status != null && statusFilter.has(status);
       });
     }
+    if (activeAction === 'suivie_generale' && connectionFilter !== 'all') {
+      rows = rows.filter((row) => (vehicleById[row.vehicleId]?.status === 'offline') === (connectionFilter === 'offline'));
+    }
     if (groupByColumnId) return rows;
     return sortSuivieRows(rows, sort);
   }, [
     scopedRows,
     activeAction,
     statusFilter,
+    connectionFilter,
     vehicleById,
     sort,
     groupByColumnId,
@@ -919,13 +973,15 @@ export function VehicleListPanel({
   useEffect(() => {
     if (!onFilteredVehicleIdsChange || !applied) return;
     const hasScope =
-      applied.vehicleIds.size > 0 || applied.departments.size > 0;
+      applied.vehicleIds.size > 0 ||
+      applied.departments.size > 0 ||
+      (activeAction === 'suivie_generale' && connectionFilter !== 'all');
     if (!hasScope) {
       onFilteredVehicleIdsChange(null);
       return;
     }
     onFilteredVehicleIdsChange(getFilteredVehicleIds(tableRows));
-  }, [applied, tableRows, onFilteredVehicleIdsChange]);
+  }, [applied, tableRows, onFilteredVehicleIdsChange, activeAction, connectionFilter]);
 
   const rowsByGroup = useMemo(() => {
     if (!groupByColumnId) return null;
@@ -993,6 +1049,9 @@ export function VehicleListPanel({
     (activeAction === 'trajectoire' ? trajectoryColors?.[vehicleId] : undefined) ??
     TRAJECTORY_COLORS[Math.max(0, trajVehicleOrder.indexOf(vehicleId)) % TRAJECTORY_COLORS.length];
 
+  /** Alerts of the fleet (same list as the Alertes view), placed on each vehicle's route */
+  const fleetAlertRows = useMemo(() => buildAlertRows(vehicles), [vehicles]);
+
   useEffect(() => {
     if (!onTrajectoryLayersChange) return;
     if (activeAction !== 'trajectoire' && activeAction !== 'stop_circulation') {
@@ -1012,6 +1071,18 @@ export function VehicleListPanel({
         label: vehicle.matricule || vehicle.name,
         color: TRAJECTORY_COLORS[i % TRAJECTORY_COLORS.length],
         path: traj.path,
+        ...(!withStops && {
+          alerts: fleetAlertRows
+            .filter((a) => a.vehicleId === vehicleId)
+            .map((a) => ({
+              id: a.id,
+              type: String(a.Type),
+              date: String(a.Date),
+              speed: String(a.Speed),
+              place: String(a.Address),
+              position: [a.alertLat, a.alertLng] as [number, number],
+            })),
+        }),
         ...(withStops && {
           runs: traj.segments.filter((g) => g.kind === 'Circulation' && g.path.length > 1).map((g) => g.path),
           stops: traj.segments
@@ -1027,7 +1098,7 @@ export function VehicleListPanel({
       });
     });
     onTrajectoryLayersChange(layers, activeAction);
-  }, [activeAction, trajVehicleOrder, hiddenTrajVehicles, soloVehicleId, vehicleById, onTrajectoryLayersChange]);
+  }, [activeAction, trajVehicleOrder, hiddenTrajVehicles, soloVehicleId, vehicleById, onTrajectoryLayersChange, fleetAlertRows]);
 
   // Stop & Circulation: frame all displayed vehicles when the tab opens or the selection changes
   const stopRunFitKey = activeAction === 'stop_circulation' ? trajVehicleOrder.join(',') : '';
@@ -1109,6 +1180,12 @@ export function VehicleListPanel({
     setIsVehicleDropdownOpen(false);
     setIsAlertDropdownOpen(false);
   };
+
+  // Suivi général is live: the vehicle choice applies right away
+  useEffect(() => {
+    if (draftAction === 'suivie_generale' && applied?.action === 'suivie_generale' && filtersDirty) applyDraft();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftAction, draftVehicles, filtersDirty]);
 
   /** Trajectoire shows one vehicle at a time */
   const singleVehicle = draftAction === 'trajectoire';
@@ -1239,7 +1316,7 @@ export function VehicleListPanel({
     }
     if (nextVehicles !== draftVehicles) setDraftVehicles(nextVehicles);
     if (action === 'alertes' && draftAction !== 'alertes') {
-      setDraftAlertTypes(new Set());
+      setDraftAlertTypes(new Set(ALERT_TYPES));
       setAlertsAwaitingApply(true);
     }
     setDraftAction(action);
@@ -1376,10 +1453,14 @@ export function VehicleListPanel({
   );
 
   const handleAadConfirm = useCallback(
-    (_mode: AadCommandMode) => {
+    (_mode: AadCommandMode, otherIds: string[]) => {
       if (!aadVehicle) return;
       focusSuivieAction('commandes', aadVehicle.id);
-      setCommandSentOpen('Commande AAD envoyée');
+      setCommandSentOpen(
+        otherIds.length
+          ? `Commande AAD envoyée à ${otherIds.length + 1} véhicules`
+          : 'Commande AAD envoyée'
+      );
       setAadVehicle(null);
     },
     [aadVehicle, focusSuivieAction]
@@ -1804,7 +1885,7 @@ export function VehicleListPanel({
           }
           return (
             <td key={col.id} className={cellClassFor(col.id, value)}>
-              {renderCellContent(col.id, value, row, handleZoomRow)}
+              {renderCellContent(col.id, value, row, handleZoomRow, vehicleById[row.vehicleId])}
             </td>
           );
         })}
@@ -1933,10 +2014,10 @@ export function VehicleListPanel({
               </nav>
               <div className="px-3 py-2 flex flex-col gap-1.5 overflow-visible">
                 {/* Une seule ligne — filtres, recherche, regroupement, exports */}
-                <div className="w-full flex flex-wrap items-center gap-1.5">
+                <div className={`w-full flex items-center gap-1.5 ${draftAction === 'suivie_generale' ? 'flex-nowrap' : 'flex-wrap'}`}>
                   <div
                     data-tour="filter-vehicles"
-                    className="order-2 relative flex-[1_1_170px] min-w-[140px] max-w-[260px]"
+                    className="order-2 relative flex-[1_1_170px] min-w-[130px] max-w-[260px]"
                     ref={vehicleDropdownRef}
                   >
                     <button
@@ -2060,6 +2141,7 @@ export function VehicleListPanel({
                             )}
                           </div>
                           {/* Apply right from the list once the selection is done */}
+                          {draftAction !== 'suivie_generale' && (
                           <div className="p-2 border-t border-[#EEF1F7] flex items-center justify-between gap-2 bg-[#FBFCFF]">
                             <span className="text-[11px] text-[#8A94A6]">
                               {filtersDirty ? 'Sélection non appliquée' : 'Sélection appliquée'}
@@ -2078,6 +2160,7 @@ export function VehicleListPanel({
                               Appliquer
                             </button>
                           </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -2181,7 +2264,7 @@ export function VehicleListPanel({
                     </div>
                   )}
 
-                  <div data-tour="filter-search" className="order-3 relative flex-[1_1_140px] min-w-[100px]">
+                  <div data-tour="filter-search" className="order-3 relative flex-[1_1_140px] min-w-[90px]">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8A94A6] pointer-events-none" />
                     <input
                       type="text"
@@ -2192,7 +2275,38 @@ export function VehicleListPanel({
                     />
                   </div>
 
-                  {/* Sends the chosen vehicles / period / alert types in one go */}
+                  {/* Suivi général: connected / not connected vehicles (counts + filter) */}
+                  {draftAction === 'suivie_generale' && (
+                    <div className="order-3 shrink-0 flex items-center gap-1 p-0.5 rounded-xl bg-[#F7F9FF] border border-[#E3E9F4]" role="group" aria-label="Connexion des véhicules">
+                      {(
+                        [
+                          ['online', 'Connectés', connectionCounts.online, Wifi, 'text-[#16A34A]', 'bg-[#ECFDF3] text-[#166534] ring-1 ring-[#BBF7D0]'],
+                          ['offline', 'Non connectés', connectionCounts.offline, WifiOff, 'text-[#8A94A6]', 'bg-white text-[#475569] ring-1 ring-[#DCE3EF]'],
+                        ] as const
+                      ).map(([key, label, count, Icon, iconCls, activeCls]) => {
+                        const on = connectionFilter === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            aria-pressed={on}
+                            aria-label={`${label} : ${count}`}
+                            title={on ? `${label} : ${count} — cliquez pour tout afficher` : `${label} : ${count} — cliquez pour n’afficher qu’eux`}
+                            onClick={() => setConnectionFilter(on ? 'all' : key)}
+                            className={`h-8 inline-flex items-center gap-1.5 px-2 rounded-lg text-[12.5px] font-extrabold tabular-nums transition-colors ${
+                              on ? activeCls : 'text-[#5B6B8C] hover:bg-white'
+                            }`}
+                          >
+                            <Icon className={`w-4 h-4 ${iconCls}`} />
+                            {count}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Sends the chosen vehicles / period / alert types in one go (not needed in the live view) */}
+                  {draftAction !== 'suivie_generale' && (
                   <button
                     type="button"
                     data-tour="filter-apply"
@@ -2210,6 +2324,7 @@ export function VehicleListPanel({
                     Appliquer
                     {filtersDirty && <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-white/90" />}
                   </button>
+                  )}
 
                   <GroupByDropZone
                     groupByColumnId={groupByColumnId}
@@ -2356,7 +2471,7 @@ export function VehicleListPanel({
                               ? 'Sélectionnez un véhicule, puis cliquez sur « Appliquer » pour afficher sa trajectoire.'
                               : 'Sélectionnez un ou plusieurs véhicules, puis cliquez sur « Appliquer » pour afficher leurs arrêts et circulations.'
                             : activeAction === 'alertes' && alertsAwaitingApply
-                            ? 'Choisissez vos filtres (véhicules, types d’alerte, période), puis cliquez sur « Appliquer » pour afficher les alertes.'
+                            ? 'Tous les types d’alerte sont cochés. Ajustez vos filtres si besoin, puis cliquez sur « Appliquer » pour afficher les alertes.'
                             : tableSearch.trim()
                             ? 'Aucun résultat pour cette recherche dans le tableau.'
                             : 'Aucun résultat pour ces filtres.'}
@@ -2699,6 +2814,7 @@ export function VehicleListPanel({
       <RemoteStopDialog
         open={aadVehicle != null}
         vehicle={aadVehicle}
+        vehicles={vehicles}
         onOpenChange={(open) => {
           if (!open) setAadVehicle(null);
         }}
