@@ -189,7 +189,7 @@ function GroupByDropZone({
       title="Glissez un en-tête de colonne ici pour grouper le tableau"
       data-tour="filter-group"
       data-grouped={groupByColumnId ? 'true' : 'false'}
-      className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[220px] min-w-0' : 'w-9 justify-center'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
+      className={`order-1 h-9 shrink-0 ${groupByColumnId ? 'max-w-[118px] min-w-0' : 'w-9 justify-center'} flex items-center gap-1.5 rounded-xl border border-dashed px-2 transition-colors ${
         isOver
           ? 'border-blue-500 bg-blue-50'
           : groupByColumnId
@@ -200,7 +200,7 @@ function GroupByDropZone({
       {groupByColumnId ? (
         <>
           <span className="inline-flex items-center gap-1 min-w-0 rounded-md bg-white border border-blue-200 px-1.5 py-0.5 text-[11px] font-semibold text-blue-800">
-            <span className="truncate max-w-[100px]">
+            <span className="truncate max-w-[64px]" title={groupByLabel || groupByColumnId}>
               {groupByLabel || groupByColumnId}
             </span>
             <button
@@ -218,10 +218,9 @@ function GroupByDropZone({
             onClick={onToggleSortDir}
             title={sortLabel}
             aria-label={sortLabel}
-            className="inline-flex items-center gap-0.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-slate-700 hover:border-blue-300 hover:text-blue-800 shrink-0"
+            className="inline-flex items-center rounded-md border border-slate-200 bg-white p-1 text-slate-700 hover:border-blue-300 hover:text-blue-800 shrink-0"
           >
             <SortIcon className="w-3 h-3" />
-            <span>{groupBySortDir === 'asc' ? 'A→Z' : 'Z→A'}</span>
           </button>
         </>
       ) : (
@@ -1180,12 +1179,6 @@ export function VehicleListPanel({
     setIsAlertDropdownOpen(false);
   };
 
-  // Suivi général is live: the vehicle choice applies right away
-  useEffect(() => {
-    if (draftAction === 'suivie_generale' && applied?.action === 'suivie_generale' && filtersDirty) applyDraft();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftAction, draftVehicles, filtersDirty]);
-
   /** Trajectoire shows one vehicle at a time */
   const singleVehicle = draftAction === 'trajectoire';
   const toggleVehicle = (id: string) => {
@@ -2140,7 +2133,6 @@ export function VehicleListPanel({
                             )}
                           </div>
                           {/* Apply right from the list once the selection is done */}
-                          {draftAction !== 'suivie_generale' && (
                           <div className="p-2 border-t border-[#EEF1F7] flex items-center justify-between gap-2 bg-[#FBFCFF]">
                             <span className="text-[11px] text-[#8A94A6]">
                               {filtersDirty ? 'Sélection non appliquée' : 'Sélection appliquée'}
@@ -2159,7 +2151,6 @@ export function VehicleListPanel({
                               Appliquer
                             </button>
                           </div>
-                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -2304,8 +2295,7 @@ export function VehicleListPanel({
                     </div>
                   )}
 
-                  {/* Sends the chosen vehicles / period / alert types in one go (not needed in the live view) */}
-                  {draftAction !== 'suivie_generale' && (
+                  {/* Sends the chosen vehicles / period / alert types in one go — always last, on the right */}
                   <button
                     type="button"
                     data-tour="filter-apply"
@@ -2323,7 +2313,6 @@ export function VehicleListPanel({
                     Appliquer
                     {filtersDirty && <span aria-hidden className="w-1.5 h-1.5 rounded-full bg-white/90" />}
                   </button>
-                  )}
 
                   <GroupByDropZone
                     groupByColumnId={groupByColumnId}

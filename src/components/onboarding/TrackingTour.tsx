@@ -98,7 +98,7 @@ const STEP_LIST: TourStep[] = [
         items={[
           'Recherchez un véhicule par matricule, IMEI ou nom.',
           'Cochez « Tous les véhicules » pour tout sélectionner, ou choisissez-les un par un.',
-          'Dans Suivi général, le choix s’applique tout de suite. Dans Trajectoire, un seul véhicule à la fois.',
+          'Validez votre choix avec « Appliquer ». Dans Trajectoire, un seul véhicule à la fois.',
         ]}
       />
     ),
@@ -159,7 +159,7 @@ const STEP_LIST: TourStep[] = [
     content: (
       <Points
         items={[
-          'Dans Stop & Circulation, Trajectoire et Alertes, choisissez d’abord vos filtres (véhicules, période, types d’alerte) : le tableau ne change pas encore.',
+          'Dans chaque vue, choisissez d’abord vos filtres (véhicules, période, types d’alerte) : le tableau ne change pas encore.',
           'Le bouton devient bleu avec un point blanc quand votre choix diffère de l’affichage.',
           'Cliquez sur « Appliquer » : les données se chargent une seule fois, pour votre choix.',
         ]}
